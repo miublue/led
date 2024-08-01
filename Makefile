@@ -1,8 +1,6 @@
-OUT = led
-
 all:
-	tcc -O2 -o $(OUT) led.c -lncurses
+	tcc -O2 -o led *.c -lncurses
 
 install: all
-	install $(OUT) /usr/local/bin
+	install led /usr/local/bin
 
