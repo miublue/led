@@ -3,9 +3,8 @@
 #include <string.h>
 #include <ctype.h>
 #include <ncurses.h>
+#include "inputbox.h"
 
-#define MIN(a, b) ((a) < (b)? (a) : (b))
-#define MAX(a, b) ((a) > (b)? (a) : (b))
 #define CTRL(c) ((c) & 0x1f)
 #define ALLOC_SIZE 512
 #define TAB_WIDTH 4
@@ -17,12 +16,22 @@ typedef struct {
 
 typedef line_t selection_t;
 
+enum {
+    ACTION_NONE,
+    ACTION_FIND,
+    // TODO: ACTION_REPLACE, ACTION_OPEN
+};
+
+typedef uint8_t action_t;
+
 struct {
 	size_t text_sz, text_alloc;
 	size_t lines_sz, lines_alloc;
 	int cur, sel, off, line, ww, wh;
 	char *text, *file;
 	line_t *lines;
+    action_t action;
+    inputbox_t input;
 } led;
 
 void append_line(line_t line);
@@ -48,6 +57,7 @@ void remove_char();
 void remove_sel();
 void copy_sel();
 
+void update();
 void render_text();
 void render_status();
 
@@ -93,6 +103,8 @@ void open_file(char *path) {
 	led.text = NULL;
 	led.lines = malloc(sizeof(line_t) * (led.lines_alloc = ALLOC_SIZE));
 	led.cur = led.sel = led.off = led.line = led.text_sz = led.lines_sz = 0;
+    led.action = ACTION_NONE;
+    input_reset(&led.input);
 	led.file = path;
 
 	FILE *file = fopen(path, "r+");
@@ -273,18 +285,147 @@ void render_text() {
 	}
 }
 
+static inline char *action_to_cstr() {
+    switch (led.action) {
+    case ACTION_FIND: return "Find: ";
+    default: return "None";
+    }
+}
+
 void render_status() {
 	char status[ALLOC_SIZE] = {0};
 	sprintf(status, " %d %d:%ld %s ",
 		led.cur-led.lines[led.line].start+1,
 		led.line+1, led.lines_sz, led.file);
-	mvprintw(led.wh-1, led.ww-strlen(status), status);
+    const size_t status_sz = strlen(status);
+	mvprintw(led.wh-1, led.ww-status_sz, status);
+    if (led.action != ACTION_NONE) {
+        char *astr = action_to_cstr();
+        mvprintw(led.wh-1, 0, "%s", astr);
+        input_render(&led.input, strlen(astr), led.wh-1, led.ww-status_sz-strlen(astr));
+    }
 }
 
 // keys you press when selecting text
 static inline bool selection_keys(int c) {
 	return (c == KEY_SLEFT || c == KEY_SRIGHT || c == KEY_SR || c == KEY_SF
 		|| c == KEY_SHOME || c == KEY_SEND || c == KEY_SPREVIOUS || c == KEY_SNEXT);
+}
+
+static void find_next() {
+    char text[INPUTBOX_TEXT_SIZE] = {0};
+    memcpy(text, led.input.text, led.input.text_sz);
+    char *str;
+    if (str = strstr(led.text+led.cur+led.input.text_sz, text)) {
+        while (led.text+led.cur != str) move_right();
+    }
+    else if (str = strstr(led.text, text)) {
+        led.cur = led.off = led.sel = led.line = 0;
+        while (led.text+led.cur != str) move_right();
+    }
+    else return;
+    led.sel = led.cur;
+    led.cur += led.input.text_sz-1;
+}
+
+static void update_find(int ch) {
+    if (ch == CTRL('c') || ch == CTRL('q')) {
+        led.action = ACTION_NONE;
+        return;
+    }
+    if (ch == '\n' || ch == CTRL('f') || ch == CTRL('n')) {
+        if (led.input.text_sz) find_next();
+        return;
+    }
+    input_update(&led.input, ch);
+}
+
+void update() {
+    int ch = getch();
+    switch (led.action) {
+    case ACTION_FIND:
+        return update_find(ch);
+    default: break;
+    }
+
+    switch (ch) {
+    case CTRL('q'):
+        quit_curses();
+        exit_program();
+        break;
+    case CTRL('s'):
+        write_file(led.file);
+        break;
+    case CTRL('c'):
+        copy_sel();
+        break;
+    case CTRL('x'):
+        copy_sel();
+        remove_sel();
+        break;
+    case CTRL('f'):
+        led.action = ACTION_FIND;
+        input_reset(&led.input);
+        break;
+    case CTRL('n'):
+        if (led.input.text_sz)
+            find_next();
+        return;
+    case KEY_SLEFT:
+    case KEY_LEFT:
+        move_left();
+        break;
+    case KEY_SRIGHT:
+    case KEY_RIGHT:
+        move_right();
+        break;
+    case KEY_SR:
+    case KEY_UP:
+        move_up();
+        break;
+    case KEY_SF:
+    case KEY_DOWN:
+        move_down();
+        break;
+    case KEY_SHOME:
+    case KEY_HOME:
+        led.cur = led.lines[led.line].start;
+        break;
+    case KEY_SEND:
+    case KEY_END:
+        led.cur = led.lines[led.line].end;
+        break;
+    case KEY_SPREVIOUS:
+    case KEY_PPAGE:
+        page_up();
+        break;
+    case KEY_SNEXT:
+    case KEY_NPAGE:
+        page_down();
+        break;
+    case '\n':
+        insert_char('\n');
+        break;
+    case '\t':
+        insert_tab();
+        break;
+    case KEY_DC:
+        if (is_selecting()) remove_sel();
+        else remove_char();
+        break;
+    case KEY_BACKSPACE:
+        if (is_selecting()) remove_sel();
+        else {
+            if (led.cur == 0) break;
+            move_left();
+            remove_char();
+        }
+        break;
+    default:
+        if (isprint(ch)) insert_char(ch);
+        break;
+    }
+    if (!selection_keys(ch)) led.sel = led.cur;
 }
 
 int main(int argc, char **argv) {
@@ -298,77 +439,7 @@ int main(int argc, char **argv) {
 		getmaxyx(stdscr, led.wh, led.ww);
 		render_text();
 		render_status();
-		int ch = getch();
-		switch (ch) {
-		case CTRL('q'):
-			quit_curses();
-			exit_program();
-			break;
-		case CTRL('s'):
-			write_file(led.file);
-			break;
-		case CTRL('c'):
-			copy_sel();
-			break;
-		case CTRL('x'):
-			copy_sel();
-			remove_sel();
-			break;
-		case KEY_SLEFT:
-		case KEY_LEFT:
-			move_left();
-			break;
-		case KEY_SRIGHT:
-		case KEY_RIGHT:
-			move_right();
-			break;
-		case KEY_SR:
-		case KEY_UP:
-			move_up();
-			break;
-		case KEY_SF:
-		case KEY_DOWN:
-			move_down();
-			break;
-		case KEY_SHOME:
-		case KEY_HOME:
-			led.cur = led.lines[led.line].start;
-			break;
-		case KEY_SEND:
-		case KEY_END:
-			led.cur = led.lines[led.line].end;
-			break;
-		case KEY_SPREVIOUS:
-		case KEY_PPAGE:
-			page_up();
-			break;
-		case KEY_SNEXT:
-		case KEY_NPAGE:
-			page_down();
-			break;
-		case '\n':
-			insert_char('\n');
-			break;
-		case '\t':
-			insert_tab();
-			break;
-		case KEY_DC:
-			if (is_selecting()) remove_sel();
-			else remove_char();
-			break;
-		case KEY_BACKSPACE:
-			if (is_selecting()) remove_sel();
-			else {
-                if (led.cur == 0) break;
-				move_left();
-				remove_char();
-			}
-			break;
-		default:
-			if (isprint(ch)) insert_char(ch);
-			break;
-		}
-		if (!selection_keys(ch)) led.sel = led.cur;
+        update();
 	}
 	quit_curses();
 	return 0;
