@@ -357,9 +357,9 @@ int main(int argc, char **argv) {
 			else remove_char();
 			break;
 		case KEY_BACKSPACE:
-			if (led.cur == 0 || led.text_sz == 0) break;
 			if (is_selecting()) remove_sel();
 			else {
+                if (led.cur == 0) break;
 				move_left();
 				remove_char();
 			}
