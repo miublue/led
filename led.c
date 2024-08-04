@@ -258,12 +258,15 @@ void remove_sel() {
 
 void copy_sel() {
     int cur = led.cur;
+    bool not_sel = false;
     if (!is_selecting()) {
+        not_sel = true;
         led.cur = led.lines[led.line].start;
         led.sel = led.lines[led.line].end;
     }
     selection_t sel = get_selection();
     led.cur = cur;
+    if (not_sel) led.sel = led.cur;
     char path[1024] = {0};
     char cmd[2048] = {0};
     sprintf(path, "%s/.ledsel", getenv("HOME"));
