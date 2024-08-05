@@ -77,7 +77,11 @@ void count_lines() {
             line_start = i+1;
         }
     }
-    if (!led.lines_sz) insert_char('\n');
+    if (!led.lines_sz) {
+        led.cur = led.text_sz;
+        insert_char('\n');
+        led.cur = 0;
+    }
 }
 
 void init_curses() {
@@ -282,9 +286,9 @@ static inline bool is_selected(int i) {
     return (is_selecting() && i >= sel.start && i <= sel.end);
 }
 
-static void render_line(int l) {
+static void render_line(int l, int off) {
     line_t line = led.lines[l];
-    int sz = 0;
+    int sz = off;
     for (int i = line.start; i <= line.end; ++i) {
         if (led.cur == i || is_selected(i)) attron(A_REVERSE);
         mvprintw(l-led.off, sz, "%c", isprint(led.text[i])? led.text[i] : ' ');
@@ -302,9 +306,13 @@ static void render_line(int l) {
 
 void render_text() {
     erase();
+    // TODO: make horizontal offset work with tabs
+    int off = (led.cur-led.lines[led.line].start > led.ww-2)?
+                (led.ww-2)-(led.cur-led.lines[led.line].start) : 0;
+
     for (int i = led.off; i < led.off+led.wh-1; ++i) {
         if (i >= led.lines_sz) break;
-        render_line(i);
+        render_line(i, off);
     }
 }
 
