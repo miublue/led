@@ -55,6 +55,9 @@ void move_next_word();
 void move_prev_word();
 void insert_char(int ch);
 void insert_tab();
+void remove_tab();
+void insert_tab_sel();
+void remove_tab_sel();
 void remove_char();
 void remove_sel();
 void copy_sel();
@@ -227,13 +230,59 @@ void insert_char(int ch) {
 }
 
 void insert_tab() {
+    int cur = led.cur, add = 0;
+    led.cur = led.lines[led.line].start;
     if (TABS_TO_SPACES) {
         for (int i = 0; i < TAB_WIDTH; ++i)
             insert_char(' ');
+        add += TAB_WIDTH;
     }
     else {
         insert_char('\t');
+        add += 1;
     }
+    led.cur = cur + add;
+}
+
+void remove_tab() {
+    int cur = led.cur, rem = 0;
+    led.cur = led.lines[led.line].start;
+    if (led.text[led.cur] == '\t') {
+        remove_char();
+        rem = 1;
+    }
+    else {
+        for (int i = 0; i < TAB_WIDTH && led.text[led.cur] == ' '; ++i) {
+            remove_char();
+            rem++;
+        }
+    }
+    led.cur = MAX(led.lines[led.line].start, cur - rem);
+    if (led.cur < 0) led.cur = 0;
+}
+
+static int get_sel_line() {
+    for (int i = 0; i < led.lines_sz; ++i) {
+        if (led.sel >= led.lines[i].start && led.sel <= led.lines[i].end)
+            return i;
+    }
+    return -1;
+}
+
+void insert_tab_sel() {
+    int line = led.line, l = 0;
+    if ((l = get_sel_line()) < 0) return;
+    for (led.line = MIN(l, line); led.line <= MAX(l, line); ++led.line)
+        insert_tab();
+    led.line = line;
+}
+
+void remove_tab_sel() {
+    int line = led.line, l = 0;
+    if ((l = get_sel_line()) < 0) return;
+    for (led.line = MIN(l, line); led.line <= MAX(l, line); ++led.line)
+        remove_tab();
+    led.line = line;
 }
 
 void remove_char() {
@@ -445,7 +494,12 @@ void update() {
         insert_char('\n');
         break;
     case '\t':
+        if (is_selecting()) return insert_tab_sel();
         insert_tab();
+        break;
+    case KEY_BTAB:
+        if (is_selecting()) return remove_tab_sel();
+        remove_tab();
         break;
     case KEY_DC:
         if (is_selecting()) remove_sel();
