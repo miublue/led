@@ -31,6 +31,7 @@ void input_update(inputbox_t *ib, int key) {
         ib->pos = ib->text_sz;
         break;
     case KEY_DC:
+        if (ib->pos >= ib->text_sz) break;
         input_remove_char(ib);
         break;
     case KEY_BACKSPACE:

@@ -16,7 +16,7 @@ typedef struct {
 
 typedef line_t selection_t;
 typedef uint8_t action_t;
-enum { ACTION_NONE, ACTION_FIND, ACTION_GOTO, };
+enum { ACTION_NONE, ACTION_FIND, ACTION_GOTO, ACTION_REPLACE, };
 
 struct {
     size_t text_sz, text_alloc;
@@ -25,7 +25,7 @@ struct {
     char *text, *file;
     line_t *lines;
     action_t action;
-    inputbox_t input;
+    inputbox_t input, input_find;
 } led;
 
 void append_line(line_t line);
@@ -235,7 +235,7 @@ void insert_char(int ch) {
 void insert_tab() {
     int cur = led.cur, add = 1;
     led.cur = led.lines[led.line].start;
-    if (TABS_TO_SPACES) {
+    if (TABS_TO_SPACES && strcmp(led.file, "Makefile") != 0) {
         for (add = 0; add < TAB_WIDTH; ++add)
             insert_char(' ');
     }
@@ -318,7 +318,6 @@ static void render_line(int l, int off) {
     for (int i = line.start; i <= line.end; ++i) {
         if (led.cur == i || is_selected(i)) attron(A_REVERSE);
         mvprintw(l-led.off, sz, "%c", isspace(led.text[i])? ' ':led.text[i]);
-        // mvprintw(l-led.off, sz, "%c", isprint(led.text[i])? led.text[i] : ' ');
         if (led.text[i] == '\t') {
             if (is_selected(i)) {
                 for (int j = 0; j < TAB_WIDTH; ++j)
@@ -347,6 +346,11 @@ static inline char *action_to_cstr() {
     switch (led.action) {
     case ACTION_FIND: return "Find: ";
     case ACTION_GOTO: return "Goto: ";
+    case ACTION_REPLACE: {
+        static char str[ALLOC_SIZE] = {0};
+        sprintf(str, "Replace(%.*s): ", led.input_find.text_sz, led.input_find.text);
+        return str;
+    }
     default: return "None";
     }
 }
@@ -365,18 +369,11 @@ void render_status() {
     }
 }
 
-// keys you press when selecting text
-static inline bool selection_keys(int c) {
-    return (c == KEY_SLEFT || c == KEY_SRIGHT || c == KEY_SR || c == KEY_SF
-        || c == KEY_SHOME || c == KEY_SEND || c == KEY_SPREVIOUS || c == KEY_SNEXT
-        || c == 546 || c == 561);
-}
-
 static void find_next() {
     char text[INPUTBOX_TEXT_SIZE] = {0};
     memcpy(text, led.input.text, led.input.text_sz);
     char *str;
-    if ((str = strstr(led.text+led.cur+led.input.text_sz, text))) {
+    if ((str = strstr(led.text+led.cur+1, text))) {
         while (led.text+led.cur != str) move_right();
     }
     else if ((str = strstr(led.text, text))) {
@@ -386,6 +383,17 @@ static void find_next() {
     else return;
     led.sel = led.cur;
     led.cur += led.input.text_sz-1;
+}
+
+static void replace_current() {
+    int m = MIN(led.cur, led.sel);
+    if (!strncmp(led.text+m, led.input_find.text, led.input_find.text_sz)) {
+        led.cur = m;
+        for (int i = 0; i < led.input_find.text_sz; ++i)
+            remove_char();
+        for (int i = 0; i < led.input.text_sz; ++i)
+            insert_char(led.input.text[i]);
+    }
 }
 
 static void goto_line() {
@@ -406,10 +414,42 @@ static bool update_none(int ch) {
     return FALSE;
 }
 
+static inline void find_in_replace() {
+    inputbox_t inpt = led.input;
+    led.input = led.input_find;
+    find_next();
+    led.input = inpt;
+}
+
+static void update_replace(int ch) {
+    if (update_none(ch)) {
+        led.input = led.input_find;
+        return;
+    }
+    if (ch == '\n' || ch == CTRL('r')) {
+        if (led.input_find.text_sz) {
+            replace_current();
+            find_in_replace();
+        }
+        return;
+    }
+    else if (ch == CTRL('f') || ch == CTRL('n')) {
+        if (led.input.text_sz && led.input_find.text_sz)
+            find_in_replace();
+    }
+    input_update(&led.input, ch);
+}
+
 static void update_find(int ch) {
     if (update_none(ch)) return;
     if (ch == '\n' || ch == CTRL('f') || ch == CTRL('n')) {
         if (led.input.text_sz) find_next();
+        return;
+    }
+    else if (ch == CTRL('r') && led.input.text_sz) {
+        led.action = ACTION_REPLACE;
+        led.input_find = led.input;
+        input_reset(&led.input);
         return;
     }
     input_update(&led.input, ch);
@@ -432,6 +472,8 @@ void update() {
         return update_find(ch);
     case ACTION_GOTO:
         return update_goto(ch);
+    case ACTION_REPLACE:
+        return update_replace(ch);
     default: break;
     }
 
@@ -461,63 +503,61 @@ void update() {
         led.action = ACTION_GOTO;
         input_reset(&led.input);
         break;
+    case CTRL('r'):
     case CTRL('f'):
         led.action = ACTION_FIND;
         input_reset(&led.input);
         break;
     case CTRL('n'):
-       if (led.input.text_sz)
-            find_next();
+        if (led.input.text_sz) find_next();
         return;
-    case KEY_SLEFT:
     case KEY_LEFT:
-        move_left();
-        break;
-    case KEY_SRIGHT:
+        move_left(); break;
+    case KEY_SLEFT:
+        return move_left();
     case KEY_RIGHT:
-        move_right();
-        break;
+        move_right(); break;
+    case KEY_SRIGHT:
+        return move_right();
+    // XXX: these keys differ depending on the keyboard
     case 560: // ctrl + right
+        move_next_word(); break;
     case 561: // ctrl + shift + right
-        move_next_word();
-        break;
+        return move_next_word();
     case 545: // ctrl + left
+        move_prev_word(); break;
     case 546: // ctrl + shift + left
-        move_prev_word();
-        break;
-    case KEY_SR:
+        return move_prev_word();
     case KEY_UP:
-        move_up();
-        break;
-    case KEY_SF:
+        move_up(); break;
+    case KEY_SR:
+        return move_up();
     case KEY_DOWN:
-        move_down();
-        break;
-    case KEY_SHOME:
+        move_down(); break;
+    case KEY_SF:
+        return move_down();
     case KEY_HOME:
-        move_home();
-        break;
-    case KEY_SEND:
+        move_home(); break;
+    case KEY_SHOME:
+        return move_home();
     case KEY_END:
-        move_end();
-        break;
-    case KEY_SPREVIOUS:
+        move_end(); break;
+    case KEY_SEND:
+        return move_end();
     case KEY_PPAGE:
-        page_up();
-        break;
-    case KEY_SNEXT:
+        page_up(); break;
+    case KEY_SPREVIOUS:
+        return page_up();
     case KEY_NPAGE:
-        page_down();
-        break;
+        page_down(); break;
+    case KEY_SNEXT:
+        return page_down();
     case '\n':
-        insert_char('\n');
-        break;
+        insert_char('\n'); break;
     case '\t':
-        insert_tab();
-        break;
+        insert_tab(); break;
     case KEY_BTAB:
-        remove_tab();
-        break;
+        remove_tab(); break;
     case KEY_DC:
         if (is_selecting()) remove_sel();
         else remove_char();
@@ -536,7 +576,7 @@ void update() {
         insert_char(ch);
         break;
     }
-    if (!selection_keys(ch)) led.sel = led.cur;
+    led.sel = led.cur;
 }
 
 int main(int argc, char **argv) {
