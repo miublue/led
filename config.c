@@ -7,26 +7,22 @@
 
 #define LENGTH(x) (sizeof(x)/sizeof((x)[0]))
 
-// default values, they should be changeable through a config file later
-static struct { char *key; ConfigValue val; } config_values[NUM_CONFIG_VALUES] = {
-    [TAB_WIDTH]   = { "tab_width", CVAL_INT(4) },
-    [EXPAND_TAB]  = { "expand_tab", CVAL_BOOL(true) },
+#include "callbacks.h"
+
+static struct { char *name; cfg_callback_t callback; } config_commands[] = {
+    { "set",  command_set },
+    { "open", command_open },
+    { "load", command_load },
+    { "save", command_save },
 };
 
-ConfigValue *get_config_value(int id) {
-    return (id >= NUM_CONFIG_VALUES)? NULL : &config_values[id].val;
-}
-
-ConfigValue *get_config_value_str(char *key) {
-    for (int i = 0; i < LENGTH(config_values); ++i) {
-        if (!strcmp(config_values[i].key, key))
-            return &config_values[i].val;
-    }
-    return NULL;
-}
+// default values, they should be changeable through a config file later
+static struct { char *key; cfg_value_t val; } config_values[NUM_CONFIG_VALUES] = {
+    [TAB_WIDTH]   = { "tabwidth", CVAL_INT(4) },
+    [EXPAND_TAB]  = { "expandtab", CVAL_BOOL(true) },
+};
 
 static struct { char *text; int sz, cur; } cfg;
-struct cfg_token { char *ptr; int sz; };
 
 static void skip_space(void) {
     while (cfg.cur < cfg.sz && isspace(cfg.text[cfg.cur])) ++cfg.cur;
@@ -36,11 +32,20 @@ static void skip_space(void) {
     }
 }
 
-static struct cfg_token next_token(void) {
-    struct cfg_token tok = {.ptr = NULL, .sz = 0};
+cfg_token_t cfg_next_token(void) {
+    cfg_token_t tok = {.ptr = NULL, .sz = 0};
     skip_space();
     if (cfg.cur >= cfg.sz) return tok;
     tok.ptr = cfg.text+cfg.cur;
+    if (cfg.text[cfg.cur] == '\"') {
+        do {
+            ++tok.sz;
+            ++cfg.cur;
+        } while (cfg.cur < cfg.sz && cfg.text[cfg.cur] != '\"');
+        ++tok.sz;
+        ++cfg.cur;
+        return tok;
+    }
     while (cfg.cur < cfg.sz && !isspace(cfg.text[cfg.cur])) {
         ++tok.sz;
         ++cfg.cur;
@@ -48,47 +53,76 @@ static struct cfg_token next_token(void) {
     return tok;
 }
 
-static long parse_int(struct cfg_token tok) {
+static long parse_int(cfg_token_t tok) {
     if (!tok.ptr || !tok.sz) return 0;
     char *end = tok.ptr+tok.sz;
     return strtol(tok.ptr, &end, 0);
 }
 
-static int compare_tok(struct cfg_token tok, const char *str) {
+bool cfg_compare_tok(cfg_token_t tok, const char *str) {
     return strlen(str) == tok.sz && strncmp(tok.ptr, str, tok.sz) == 0;
 }
 
-static void change_config(struct cfg_token tok) {
-    ConfigValue cfg_val = {0};
-    struct cfg_token tok_val = {0};
-    if (cfg.cur < cfg.sz) tok_val = next_token();
-    bool is_true = compare_tok(tok_val, "true") || compare_tok(tok_val, "yes");
-    bool is_false = compare_tok(tok_val, "false") || compare_tok(tok_val, "no");
-
-    if (!tok_val.sz) {
-        cfg_val = CVAL_INT(0);
-    } else if (isdigit(tok_val.ptr[0])) {
-        cfg_val = CVAL_INT(parse_int(tok_val));
-    } else if (is_true || is_false) {
-        cfg_val = CVAL_BOOL(is_true);
-    } else {
-        cfg_val = CVAL_INT(0);
-        // XXX: add strings when i need them
-    }
-
-    char *key = strndup(tok.ptr, tok.sz);
-    ConfigValue *val = get_config_value_str(key);
-    if (val) *val = cfg_val;
-    free(key);
+cfg_value_t cfg_parse_value(cfg_token_t tok) {
+    cfg_value_t val = CVAL_INT(0);
+    bool is_true = cfg_compare_tok(tok, "true") || cfg_compare_tok(tok, "yes");
+    bool is_false = cfg_compare_tok(tok, "false") || cfg_compare_tok(tok, "no");
+    if (isdigit(tok.ptr[0]) || tok.ptr[0] == '-')
+        val = CVAL_INT(parse_int(tok));
+    else if (tok.ptr[0] == '\"')
+        val = CVAL_STR(strndup(tok.ptr+1, tok.sz-2));
+    else if (is_true || is_false)
+        val = CVAL_BOOL(is_true);
+    return val;
 }
 
-void parse_config(char *text, int sz) {
+cfg_value_t *cfg_get_value_idx(int id) {
+    return (id >= NUM_CONFIG_VALUES)? NULL : &config_values[id].val;
+}
+
+cfg_value_t *cfg_get_value_key(char *key) {
+    for (int i = 0; i < LENGTH(config_values); ++i) {
+        if (!strcmp(config_values[i].key, key))
+            return &config_values[i].val;
+    }
+    return NULL;
+}
+
+void cfg_parse(char *text, int sz) {
     cfg.text = text;
     cfg.sz = sz;
     cfg.cur = 0;
     while (cfg.cur < cfg.sz) {
-        struct cfg_token tok = next_token();
-        if (compare_tok(tok, "set")) change_config(next_token());
+        cfg_token_t tok = cfg_next_token();
+        for (int i = 0; i < LENGTH(config_commands); ++i) {
+            if (cfg_compare_tok(tok, config_commands[i].name)) {
+                config_commands[i].callback();
+                break;
+            }
+        }
     }
 }
 
+void cfg_parse_file(char *path) {
+    FILE *file = NULL;
+    char *text = NULL;
+    int sz = 0;
+    char *cfg_text = cfg.text;
+    int cfg_sz = cfg.sz, cfg_cur = cfg.cur;
+    if (!(file = fopen(path, "r"))) goto fail;
+    fseek(file, 0, SEEK_END);
+    sz = ftell(file);
+    rewind(file);
+    if (!(text = malloc(sz))) goto fail;
+    if (fread(text, 1, sz, file) != sz) goto fail;
+    cfg_parse(text, sz);
+    cfg.text = cfg_text;
+    cfg.sz = cfg_sz;
+    cfg.cur = cfg_cur;
+    free(text);
+    fclose(file);
+    return;
+fail:
+    if (file) fclose(file);
+    if (text) free(text);
+}
