@@ -1,6 +1,6 @@
 #include <string.h>
 #include <ctype.h>
-#include <ncurses.h>
+#include <ncursesw/ncurses.h>
 #include "inputbox.h"
 
 static inline void input_insert_char(inputbox_t *ib, int c) {
