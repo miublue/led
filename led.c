@@ -580,7 +580,7 @@ static void update_insert(int ch) {
         copy_sel();
         remove_sel();
         break;
-   case CTRL('e'):
+    case CTRL('e'):
         led.mode = MODE_COMMAND;
         input_reset(&led.input);
         break;
