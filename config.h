@@ -6,6 +6,7 @@
 enum {
     TAB_WIDTH,
     EXPAND_TAB,
+    LINE_NUMBER,
     NUM_CONFIG_VALUES,
 };
 

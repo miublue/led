@@ -9,17 +9,18 @@
 
 #include "callbacks.h"
 
-static struct { char *name; cfg_callback_t callback; } config_commands[] = {
+static struct { char *name; cfg_callback_t callback; } _config_commands[] = {
     { "set",  command_set },
     { "open", command_open },
     { "load", command_load },
     { "save", command_save },
+    { "quit", command_quit },
 };
 
-// default values, they should be changeable through a config file later
-static struct { char *key; cfg_value_t val; } config_values[NUM_CONFIG_VALUES] = {
-    [TAB_WIDTH]   = { "tabwidth", CVAL_INT(4) },
-    [EXPAND_TAB]  = { "expandtab", CVAL_BOOL(true) },
+static struct { char *key; cfg_value_t val; } _config_values[NUM_CONFIG_VALUES] = {
+    [TAB_WIDTH]    = { "tabwidth", CVAL_INT(4) },
+    [EXPAND_TAB]   = { "expandtab", CVAL_BOOL(true) },
+    [LINE_NUMBER]  = { "linenumber", CVAL_BOOL(false) },
 };
 
 static struct { char *text; int sz, cur; } cfg;
@@ -77,13 +78,13 @@ cfg_value_t cfg_parse_value(cfg_token_t tok) {
 }
 
 cfg_value_t *cfg_get_value_idx(int id) {
-    return (id >= NUM_CONFIG_VALUES)? NULL : &config_values[id].val;
+    return (id >= NUM_CONFIG_VALUES)? NULL : &_config_values[id].val;
 }
 
 cfg_value_t *cfg_get_value_key(char *key) {
-    for (int i = 0; i < LENGTH(config_values); ++i) {
-        if (!strcmp(config_values[i].key, key))
-            return &config_values[i].val;
+    for (int i = 0; i < LENGTH(_config_values); ++i) {
+        if (!strcmp(_config_values[i].key, key))
+            return &_config_values[i].val;
     }
     return NULL;
 }
@@ -94,9 +95,9 @@ void cfg_parse(char *text, int sz) {
     cfg.cur = 0;
     while (cfg.cur < cfg.sz) {
         cfg_token_t tok = cfg_next_token();
-        for (int i = 0; i < LENGTH(config_commands); ++i) {
-            if (cfg_compare_tok(tok, config_commands[i].name)) {
-                config_commands[i].callback();
+        for (int i = 0; i < LENGTH(_config_commands); ++i) {
+            if (cfg_compare_tok(tok, _config_commands[i].name)) {
+                _config_commands[i].callback();
                 break;
             }
         }

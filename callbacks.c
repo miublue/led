@@ -39,6 +39,10 @@ void command_save(void) {
     free(file);
 }
 
+void command_quit(void) {
+    exit_program();
+}
+
 static inline char* parse_string(void) {
     cfg_token_t tok = cfg_next_token();
     if (!tok.sz) return NULL;

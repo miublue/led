@@ -8,6 +8,24 @@
 #define ALLOC_SIZE 512
 
 typedef struct line_t selection_t;
+typedef struct line_t {
+    uint32_t start, end;
+} line_t;
+
+typedef struct cursor_t {
+    int cur, off, line, sel;
+    // XXX: maybe cursor should keep track of the text it's editing
+    // (so maybe we could have multiple cursors later?)
+} cursor_t;
+
+enum { MODE_NONE, MODE_FIND, MODE_GOTO, MODE_OPEN, MODE_REPLACE, MODE_COMMAND };
+
+typedef struct {
+    enum { ACTION_INSERT, ACTION_DELETE, ACTION_BACKSPACE } type;
+    cursor_t cur;
+    int text_sz, text_alloc;
+    char *text;
+} action_t;
 
 void open_file(char *path);
 void write_file(char *path);

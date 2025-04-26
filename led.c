@@ -10,23 +10,12 @@
 
 // ABANDON ALL HOPE, YE WHO ENTER HERE
 
-typedef struct line_t {
-    uint32_t start, end;
-} line_t;
-
-enum { MODE_NONE, MODE_FIND, MODE_GOTO, MODE_OPEN, MODE_REPLACE, MODE_COMMAND };
-
-typedef struct {
-    enum { ACTION_INSERT, ACTION_DELETE, ACTION_BACKSPACE } type;
-    int cur, off, line, text_sz, text_alloc;
-    char *text;
-} action_t;
-
 static struct {
     size_t text_sz, text_alloc;
     size_t lines_sz, lines_alloc;
     size_t action, actions_sz, actions_alloc;
-    int mode, readonly, cur, sel, off, line, ww, wh;
+    int mode, readonly, ww, wh;
+    cursor_t cur;
     bool is_undo;
     char *text, *file;
     line_t *lines;
@@ -63,15 +52,13 @@ static void insert_to_action(action_t *act, char c) {
 static void append_action(int type, char c) {
     if (led.action != -1 && led.actions[led.action].type == type) {
         action_t *act = &led.actions[led.action];
-        bool is_ins = (type == ACTION_INSERT    && led.cur == act->cur+act->text_sz);
-        bool is_del = (type == ACTION_DELETE    && led.cur == act->cur);
-        bool is_bak = (type == ACTION_BACKSPACE && led.cur == act->cur-1);
-        if (is_bak) {
-            act->cur = led.cur; act->line = led.line; act->off = led.off;
-        }
+        bool is_ins = (type == ACTION_INSERT    && led.cur.cur == act->cur.cur+act->text_sz);
+        bool is_del = (type == ACTION_DELETE    && led.cur.cur == act->cur.cur);
+        bool is_bak = (type == ACTION_BACKSPACE && led.cur.cur == act->cur.cur-1);
+        if (is_bak) act->cur = led.cur;
         if (is_ins || is_del || is_bak) return insert_to_action(act, c);
     }
-    action_t act = { .type = type, .cur = led.cur, .off = led.off, .line = led.line };
+    action_t act = { .type = type, .cur = led.cur };
     act.text = malloc(sizeof(char) * (act.text_alloc = ALLOC_SIZE));
     act.text_sz = 0;
     insert_to_action(&act, c);
@@ -87,17 +74,13 @@ static void undo_delete(action_t *act) {
 }
 
 static void undo_backspace(action_t *act) {
-    for (int i = 0; i < act->text_sz; ++i) {
-        insert_char(act->text[i]);
-        move_left();
-    }
-    for (int i = 0; i < act->text_sz-1; ++i) move_right();
+    for (int i = act->text_sz-1; i >= 0; --i) insert_char(act->text[i]);
 }
 
 void undo_action(void) {
     if (led.action == -1) return;
     action_t *act = &led.actions[led.action--];
-    led.cur = act->cur; led.off = act->off; led.line = act->line;
+    led.cur = act->cur;
     led.is_undo = TRUE;
     switch (act->type) {
     case ACTION_INSERT: undo_insert(act); break;
@@ -110,13 +93,13 @@ void undo_action(void) {
 
 void redo_action(void) {
     if (led.action+1 == led.actions_sz) return;
-    action_t act = led.actions[++led.action];
-    led.cur = act.cur; led.off = act.off; led.line = act.line;
+    action_t *act = &led.actions[++led.action];
+    led.cur = act->cur;
     led.is_undo = TRUE;
-    switch (act.type) {
-    case ACTION_INSERT: undo_delete(&act); break;
-    case ACTION_DELETE: undo_insert(&act); break;
-    case ACTION_BACKSPACE: undo_insert(&act); break;
+    switch (act->type) {
+    case ACTION_INSERT: undo_delete(act); break;
+    case ACTION_DELETE: undo_insert(act); break;
+    case ACTION_BACKSPACE: undo_insert(act); break;
     default: break;
     }
     led.is_undo = FALSE;
@@ -137,9 +120,9 @@ static void count_lines(void) {
         }
     }
     if (!isspace(led.text[led.text_sz-1]) || !led.lines_sz) {
-        led.cur = led.text_sz;
+        led.cur.cur = led.text_sz;
         insert_char('\n');
-        led.cur = 0;
+        led.cur.cur = 0;
     }
 }
 
@@ -161,6 +144,7 @@ void exit_program(void) {
     if (led.text) free(led.text);
     if (led.lines) free(led.lines);
     if (led.actions) free_actions();
+    quit_curses();
     exit(0);
 }
 
@@ -178,7 +162,8 @@ void open_file(char *path) {
     led.text = NULL;
     led.lines = malloc(sizeof(line_t) * (led.lines_alloc = ALLOC_SIZE));
     led.actions = malloc(sizeof(action_t) * (led.actions_alloc = ALLOC_SIZE));
-    led.cur = led.sel = led.off = led.line = led.text_sz = led.lines_sz = led.actions_sz = 0;
+    led.text_sz = led.lines_sz = led.actions_sz = 0;
+    led.cur = (cursor_t) {0};
     led.mode = MODE_NONE;
     led.is_undo = led.readonly = FALSE;
     led.action = -1;
@@ -216,58 +201,58 @@ void write_file(char *path) {
 }
 
 bool is_selecting(void) {
-    return (led.cur != led.sel);
+    return (led.cur.cur != led.cur.sel);
 }
 
 selection_t get_selection(void) {
     return (selection_t) {
-        .start = MIN(led.cur, led.sel),
-        .end = MAX(led.cur, led.sel),
+        .start = MIN(led.cur.cur, led.cur.sel),
+        .end = MAX(led.cur.cur, led.cur.sel),
     };
 }
 
 void scroll_up(void) {
-    if (led.line-led.off < 0 && led.off > 0) --led.off;
+    if (led.cur.line-led.cur.off < 0 && led.cur.off > 0) --led.cur.off;
 }
 
 void scroll_down(void) {
-    if (led.line-led.off > led.wh-2) ++led.off;
+    if (led.cur.line-led.cur.off > led.wh-2) ++led.cur.off;
 }
 
 void move_left(void) {
-    if (led.cur == 0) return;
-    if (led.text[--led.cur] == '\n' && led.line > 0) --led.line;
+    if (led.cur.cur == 0) return;
+    if (led.text[--led.cur.cur] == '\n' && led.cur.line > 0) --led.cur.line;
     scroll_up();
 }
 
 void move_right(void) {
-    if (led.cur >= led.text_sz-1) return;
-    if (++led.cur == led.lines[led.line].end+1 && led.line < led.lines_sz) ++led.line;
+    if (led.cur.cur >= led.text_sz-1) return;
+    if (++led.cur.cur == led.lines[led.cur.line].end+1 && led.cur.line < led.lines_sz) ++led.cur.line;
     scroll_down();
 }
 
 void move_up(void) {
-    if (led.line == 0) return;
-    --led.line;
-    led.cur -= led.lines[led.line].end - led.lines[led.line].start + 1;
-    if (led.cur > led.lines[led.line].end) led.cur = led.lines[led.line].end;
+    if (led.cur.line == 0) return;
+    --led.cur.line;
+    led.cur.cur -= led.lines[led.cur.line].end - led.lines[led.cur.line].start + 1;
+    if (led.cur.cur > led.lines[led.cur.line].end) led.cur.cur = led.lines[led.cur.line].end;
     scroll_up();
 }
 
 void move_down(void) {
-    if (led.line >= led.lines_sz-1) return;
-    led.cur += led.lines[led.line].end - led.lines[led.line].start + 1;
-    ++led.line;
-    if (led.cur > led.lines[led.line].end) led.cur = led.lines[led.line].end;
+    if (led.cur.line >= led.lines_sz-1) return;
+    led.cur.cur += led.lines[led.cur.line].end - led.lines[led.cur.line].start + 1;
+    ++led.cur.line;
+    if (led.cur.cur > led.lines[led.cur.line].end) led.cur.cur = led.lines[led.cur.line].end;
     scroll_down();
 }
 
 void move_home(void) {
-    led.cur = led.lines[led.line].start;
+    led.cur.cur = led.lines[led.cur.line].start;
 }
 
 void move_end(void) {
-    led.cur = led.lines[led.line].end;
+    led.cur.cur = led.lines[led.cur.line].end;
 }
 
 void page_up(void) {
@@ -284,17 +269,17 @@ static inline bool isdelim(char c) {
 }
 
 void move_next_word(void) {
-    if (led.cur+1 >= led.text_sz) return;
-    if (isdelim(led.text[led.cur+1]))
-        while (led.cur < led.text_sz-2 && isdelim(led.text[led.cur+1])) move_right();
-    else while (led.cur < led.text_sz-2 && !isdelim(led.text[led.cur+1])) move_right();
+    if (led.cur.cur+1 >= led.text_sz) return;
+    if (isdelim(led.text[led.cur.cur+1]))
+        while (led.cur.cur < led.text_sz-2 && isdelim(led.text[led.cur.cur+1])) move_right();
+    else while (led.cur.cur < led.text_sz-2 && !isdelim(led.text[led.cur.cur+1])) move_right();
 }
 
 void move_prev_word(void) {
-    if (led.cur <= 1) return;
-    if (isdelim(led.text[led.cur-1]))
-        while (led.cur > 1 && isdelim(led.text[led.cur-1])) move_left();
-    else while (led.cur > 1 && !isdelim(led.text[led.cur-1])) move_left();
+    if (led.cur.cur <= 1) return;
+    if (isdelim(led.text[led.cur.cur-1]))
+        while (led.cur.cur > 1 && isdelim(led.text[led.cur.cur-1])) move_left();
+    else while (led.cur.cur > 1 && !isdelim(led.text[led.cur.cur-1])) move_left();
 }
 
 // XXX: allow for adding/removing multiple characters at a time
@@ -303,69 +288,69 @@ void insert_char(int ch) {
     if (++led.text_sz >= led.text_alloc)
         led.text = realloc(led.text, (led.text_alloc += ALLOC_SIZE));
     if (!led.is_undo) append_action(ACTION_INSERT, ch);
-    memmove(led.text+led.cur+1, led.text+led.cur, led.text_sz-led.cur);
-    led.text[led.cur] = ch;
+    memmove(led.text+led.cur.cur+1, led.text+led.cur.cur, led.text_sz-led.cur.cur);
+    led.text[led.cur.cur] = ch;
     count_lines();
     move_right();
 }
 
 void insert_tab(void) {
     if (led.readonly) return;
-    int cur = led.cur, add = 1;
-    led.cur = led.lines[led.line].start;
+    int cur = led.cur.cur, add = 1;
+    led.cur.cur = led.lines[led.cur.line].start;
     if (cfg_get_value_idx(EXPAND_TAB)->as_bool && strcmp(led.file, "Makefile") != 0) {
         for (add = 0; add < cfg_get_value_idx(TAB_WIDTH)->as_int; ++add)
             insert_char(' ');
     } else {
         insert_char('\t');
     }
-    led.cur = cur + add;
-    if (led.cur > led.lines[led.line].end) led.cur = led.lines[led.line].end;
-    if (led.cur < led.lines[led.line].start) led.cur = led.lines[led.line].start;
+    led.cur.cur = cur + add;
+    if (led.cur.cur > led.lines[led.cur.line].end) led.cur.cur = led.lines[led.cur.line].end;
+    if (led.cur.cur < led.lines[led.cur.line].start) led.cur.cur = led.lines[led.cur.line].start;
 }
 
 void remove_tab(void) {
     if (led.readonly) return;
-    int cur = led.cur, rem = 1;
-    led.cur = led.lines[led.line].start;
-    if (led.text[led.cur] == '\t') {
+    int cur = led.cur.cur, rem = 1;
+    led.cur.cur = led.lines[led.cur.line].start;
+    if (led.text[led.cur.cur] == '\t') {
         remove_char(FALSE);
     } else {
-        for (rem = 0; rem < cfg_get_value_idx(TAB_WIDTH)->as_int && led.text[led.cur] == ' '; ++rem)
+        for (rem = 0; rem < cfg_get_value_idx(TAB_WIDTH)->as_int && led.text[led.cur.cur] == ' '; ++rem)
             remove_char(FALSE);
     }
-    led.cur = cur - rem;
-    if (led.cur > led.lines[led.line].end) led.cur = led.lines[led.line].end;
-    if (led.cur < led.lines[led.line].start) led.cur = led.lines[led.line].start;
+    led.cur.cur = cur - rem;
+    if (led.cur.cur > led.lines[led.cur.line].end) led.cur.cur = led.lines[led.cur.line].end;
+    if (led.cur.cur < led.lines[led.cur.line].start) led.cur.cur = led.lines[led.cur.line].start;
 }
 
 void remove_char(bool backspace) {
     if (led.readonly) return;
     if (backspace) move_left();
-    if (led.text_sz == 0 || led.cur >= led.text_sz-1) return;
-    if (!led.is_undo) append_action(backspace? ACTION_BACKSPACE : ACTION_DELETE, led.text[led.cur]);
-    memmove(led.text+led.cur, led.text+led.cur+1, led.text_sz-led.cur);
+    if (led.text_sz == 0 || led.cur.cur >= led.text_sz-1) return;
+    if (!led.is_undo) append_action(backspace? ACTION_BACKSPACE : ACTION_DELETE, led.text[led.cur.cur]);
+    memmove(led.text+led.cur.cur, led.text+led.cur.cur+1, led.text_sz-led.cur.cur);
     --led.text_sz;
     count_lines();
 }
 
 void find_string(char *to_find) {
     char *str = NULL;
-    if ((str = strstr(led.text+led.cur+1, to_find))) {
-        while (led.text+led.cur != str) move_right();
+    if ((str = strstr(led.text+led.cur.cur+1, to_find))) {
+        while (led.text+led.cur.cur != str) move_right();
     } else if ((str = strstr(led.text, to_find))) {
-        led.cur = led.off = led.sel = led.line = 0;
-        while (led.text+led.cur != str) move_right();
+        led.cur = (cursor_t) {0};
+        while (led.text+led.cur.cur != str) move_right();
     } else return;
-    led.sel = led.cur;
-    led.cur += strlen(to_find)-1;
+    led.cur.sel = led.cur.cur;
+    led.cur.cur += strlen(to_find)-1;
 }
 
 void replace_string(char *to_replace, char *str) {
-    int m = MIN(led.cur, led.sel);
+    int m = MIN(led.cur.cur, led.cur.sel);
     int rep_sz = strlen(to_replace);
     if (!strncmp(led.text+m, to_replace, rep_sz)) {
-        led.cur = m;
+        led.cur.cur = m;
         for (int i = 0; i < rep_sz; ++i)
             remove_char(FALSE);
         for (int i = 0; i < strlen(str); ++i)
@@ -375,22 +360,22 @@ void replace_string(char *to_replace, char *str) {
 
 void goto_line(long line) {
     if (line == 0) return;
-    led.cur = led.off = led.line = 0;
+    led.cur.cur = led.cur.off = led.cur.line = 0;
     for (int i = 0; i < line-1; ++i) move_down();
-    led.sel = led.cur;
+    led.cur.sel = led.cur.cur;
 }
 
 static void goto_start_of_selection(void) {
     selection_t sel = get_selection();
-    if (led.cur == sel.start) return;
-    while (led.cur > sel.start) move_left();
+    if (led.cur.cur == sel.start) return;
+    while (led.cur.cur > sel.start) move_left();
 }
 
 void remove_sel(void) {
     if (led.readonly) return;
     if (!is_selecting()) {
-        led.cur = led.lines[led.line].start;
-        led.sel = led.lines[led.line].end;
+        led.cur.cur = led.lines[led.cur.line].start;
+        led.cur.sel = led.lines[led.cur.line].end;
     }
     selection_t sel = get_selection();
     goto_start_of_selection();
@@ -399,16 +384,16 @@ void remove_sel(void) {
 }
 
 void copy_sel(void) {
-    int cur = led.cur;
+    int cur = led.cur.cur;
     bool not_sel = FALSE;
     if (!is_selecting()) {
         not_sel = TRUE;
-        led.cur = led.lines[led.line].start;
-        led.sel = led.lines[led.line].end;
+        led.cur.cur = led.lines[led.cur.line].start;
+        led.cur.sel = led.lines[led.cur.line].end;
     }
     selection_t sel = get_selection();
-    led.cur = cur;
-    if (not_sel) led.sel = led.cur;
+    led.cur.cur = cur;
+    if (not_sel) led.cur.sel = led.cur.cur;
     char path[1024] = {0};
     char cmd[2048] = {0};
     sprintf(path, "%s/.ledsel", getenv("HOME"));
@@ -429,26 +414,40 @@ static void render_line(int l, int off) {
     int sz = off;
     const int tab_width = cfg_get_value_idx(TAB_WIDTH)->as_int;
     for (int i = line.start; i <= line.end; ++i) {
-        if (led.cur == i || is_selected(i)) attron(A_REVERSE);
-        mvprintw(l-led.off, sz, "%c", isspace(led.text[i])? ' ':led.text[i]);
+        if (led.cur.cur == i || is_selected(i)) attron(A_REVERSE);
+        mvprintw(l-led.cur.off, sz, "%c", isspace(led.text[i])? ' ':led.text[i]);
         if (led.text[i] == '\t') {
             if (is_selected(i)) {
                 for (int j = 0; j < tab_width; ++j)
-                    mvprintw(l-led.off, sz+j, " ");
+                    mvprintw(l-led.cur.off, sz+j, " ");
             }
             sz += tab_width;
         } else sz++;
         attroff(A_REVERSE);
     }
+    if (cfg_get_value_idx(LINE_NUMBER)->as_bool)
+        mvprintw(l-led.cur.off, 0, " %d ", l+1);
+}
+
+static inline int calculate_line_size(void) {
+    int sz = 0;
+    for (int i = led.lines[led.cur.line].start; i < led.cur.cur; ++i)
+        sz += (led.text[i] == '\t')? cfg_get_value_idx(TAB_WIDTH)->as_int : 1;
+    return sz;
 }
 
 static void render_text(void) {
     erase();
-    // XXX: make horizontal offset work with tabs
-    int off = (led.cur-led.lines[led.line].start > led.ww-2)?
-                (led.ww-2)-(led.cur-led.lines[led.line].start) : 0;
-
-    for (int i = led.off; i < led.off+led.wh-1; ++i) {
+    int cur_off = calculate_line_size(), off = 0;
+    while (led.cur.line-led.cur.off < 0) { move_down(); led.cur.sel = led.cur.cur; }
+    while (led.cur.line-led.cur.off >= led.wh-1) { move_up(); led.cur.sel = led.cur.cur; }
+    if (cfg_get_value_idx(LINE_NUMBER)->as_bool) {
+        char linenu[16];
+        sprintf(linenu, " %d ", led.lines_sz);
+        off = strlen(linenu);
+    }
+    if (cur_off+off > led.ww-2) off = (led.ww-2)-cur_off;
+    for (int i = led.cur.off; i < led.cur.off+led.wh-1; ++i) {
         if (i >= led.lines_sz) break;
         render_line(i, off);
     }
@@ -473,8 +472,8 @@ static void render_status(void) {
     char status[ALLOC_SIZE] = {0};
     sprintf(status, " %s %d %d:%ld %s ",
         led.readonly? "[RO]" : "",
-        led.cur-led.lines[led.line].start+1,
-        led.line+1, led.lines_sz, led.file);
+        led.cur.cur-led.lines[led.cur.line].start+1,
+        led.cur.line+1, led.lines_sz, led.file);
     const size_t status_sz = strlen(status);
     mvprintw(led.wh-1, led.ww-status_sz, "%s", status);
     if (led.mode != MODE_NONE) {
@@ -484,8 +483,8 @@ static void render_status(void) {
     }
 }
 
-static void find_next(void) {
-    char *text = strndup(led.input.text, led.input.text_sz);
+static void find_next(inputbox_t input) {
+    char *text = strndup(input.text, input.text_sz);
     find_string(text);
     free(text);
 }
@@ -513,13 +512,6 @@ static bool update_none(int ch) {
     return FALSE;
 }
 
-static inline void find_in_replace(void) {
-    inputbox_t inpt = led.input;
-    led.input = led.input_find;
-    find_next();
-    led.input = inpt;
-}
-
 static void update_replace(int ch) {
     if (update_none(ch)) {
         led.input = led.input_find;
@@ -528,12 +520,16 @@ static void update_replace(int ch) {
     if (ch == '\n' || ch == CTRL('r')) {
         if (led.input_find.text_sz) {
             replace_current();
-            find_in_replace();
+            find_next(led.input_find);
         }
         return;
-    } else if (ch == CTRL('f') || ch == CTRL('n')) {
+    } else if (ch == CTRL('f')) {
+        led.input = led.input_find;
+        led.mode = MODE_FIND;
+        return;
+    } else if (ch == CTRL('n')) {
         if (led.input.text_sz && led.input_find.text_sz)
-            find_in_replace();
+            find_next(led.input_find);
     }
     input_update(&led.input, ch);
 }
@@ -541,7 +537,7 @@ static void update_replace(int ch) {
 static void update_find(int ch) {
     if (update_none(ch)) return;
     if (ch == '\n' || ch == CTRL('f') || ch == CTRL('n')) {
-        if (led.input.text_sz) find_next();
+        if (led.input.text_sz) find_next(led.input);
         return;
     } else if (ch == CTRL('r') && led.input.text_sz) {
         led.mode = MODE_REPLACE;
@@ -552,62 +548,26 @@ static void update_find(int ch) {
     input_update(&led.input, ch);
 }
 
-static void update_goto(int ch) {
-    if (update_none(ch)) return;
-    if (ch == '\n') {
-        if (led.input.text_sz) jump_to_line();
-        led.mode = MODE_NONE;
-        return;
-    }
-    input_update(&led.input, ch);
+
+#define FUPDATE(NAME, BODY) \
+static void NAME(int ch) { \
+    if (update_none(ch)) return; \
+    if (ch == '\n') { \
+        if (led.input.text_sz) { BODY; } \
+        led.mode = MODE_NONE; return; \
+    } \
+    input_update(&led.input, ch); \
 }
 
-static void update_open(int ch) {
-    if (update_none(ch)) return;
-    if (ch == '\n') {
-        if (led.input.text_sz) open_file(strndup(led.input.text, led.input.text_sz));
-        led.mode = MODE_NONE;
-        return;
-    }
-    input_update(&led.input, ch);
-}
+FUPDATE(update_goto, jump_to_line())
+FUPDATE(update_open, open_file(strndup(led.input.text, led.input.text_sz)))
+FUPDATE(update_command, cfg_parse(led.input.text, led.input.text_sz))
 
-static void update_command(int ch) {
-    if (update_none(ch)) return;
-    if (ch == '\n') {
-        cfg_parse(led.input.text, led.input.text_sz);
-        led.mode = MODE_NONE;
-        return;
-    }
-    input_update(&led.input, ch);
-}
+#undef FUPDATE
 
-static void update(void) {
-    int ch = getch();
-    switch (led.mode) {
-    case MODE_FIND:
-        return update_find(ch);
-    case MODE_GOTO:
-        return update_goto(ch);
-    case MODE_OPEN:
-        return update_open(ch);
-    case MODE_REPLACE:
-        return update_replace(ch);
-    case MODE_COMMAND:
-        return update_command(ch);
-    default: break;
-    }
-
+static void update_insert(int ch) {
     switch (ch) {
-    case 27: { // alt or esc
-        ch = getch(); // alt+key sends another key right after 27
-        if (ch == 'f') move_next_word();
-        if (ch == 'F') return move_next_word();
-        if (ch == 'b') move_prev_word();
-        if (ch == 'B') return move_prev_word();
-    } break;
     case CTRL('q'):
-        quit_curses();
         exit_program();
         break;
     case CTRL('s'):
@@ -638,14 +598,12 @@ static void update(void) {
         input_reset(&led.input);
         break;
     case CTRL('n'):
-        if (led.input.text_sz) find_next();
+        if (led.input.text_sz) find_next(led.input);
         return;
     case CTRL('z'):
-        undo_action();
-        break;
+        undo_action(); break;
     case CTRL('y'):
-        redo_action();
-        break;
+        redo_action(); break;
     case KEY_LEFT:
         move_left(); break;
     case KEY_SLEFT:
@@ -654,7 +612,7 @@ static void update(void) {
         move_right(); break;
     case KEY_SRIGHT:
         return move_right();
-    // XXX: these keys differ depending on the keyboard
+    // XXX: these keys differ depending on the keyboard/terminal
     case 560: case 569: case 572: // ctrl + right
         move_next_word(); break;
     case 561: case 570: case 573: // ctrl + shift + right
@@ -701,7 +659,7 @@ static void update(void) {
     case KEY_BACKSPACE:
         if (is_selecting()) remove_sel();
         else {
-            if (led.cur == 0) break;
+            if (led.cur.cur == 0) break;
             remove_char(TRUE);
         }
         break;
@@ -715,9 +673,9 @@ static void update(void) {
     case 8: // ctrl + backspace
         if (is_selecting()) remove_sel();
         else {
-            if (led.cur == 0) break;
-            if (isdelim(led.text[led.cur])) move_left();
-            led.sel = led.cur;
+            if (led.cur.cur == 0) break;
+            if (isdelim(led.text[led.cur.cur])) move_left();
+            led.cur.sel = led.cur.cur;
             move_prev_word();
             remove_sel();
         }
@@ -728,7 +686,20 @@ static void update(void) {
         insert_char(ch);
         break;
     }
-    led.sel = led.cur;
+    led.cur.sel = led.cur.cur;
+}
+
+static void update(void) {
+    void (*update_fns[])(int) = {
+        [MODE_NONE]    = &update_insert,
+        [MODE_FIND]    = &update_find,
+        [MODE_GOTO]    = &update_goto,
+        [MODE_OPEN]    = &update_open,
+        [MODE_REPLACE] = &update_replace,
+        [MODE_COMMAND] = &update_command,
+    };
+    int ch = getch();
+    return update_fns[led.mode](ch);
 }
 
 int main(int argc, char **argv) {
