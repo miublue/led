@@ -49,14 +49,20 @@ static void insert_to_action(action_t *act, char c) {
     act->text[act->text_sz++] = c;
 }
 
+static bool is_action_repeat(int type, action_t *act) {
+    switch (type) {
+    case ACTION_DELETE: return led.cur.cur == act->cur.cur;
+    case ACTION_BACKSPACE: return led.cur.cur == act->cur.cur-1;
+    default: return led.cur.cur == act->cur.cur + act->text_sz;
+    }
+}
+
 static void append_action(int type, char c) {
     if (led.action != -1 && led.actions[led.action].type == type) {
         action_t *act = &led.actions[led.action];
-        bool is_ins = (type == ACTION_INSERT    && led.cur.cur == act->cur.cur+act->text_sz);
-        bool is_del = (type == ACTION_DELETE    && led.cur.cur == act->cur.cur);
-        bool is_bak = (type == ACTION_BACKSPACE && led.cur.cur == act->cur.cur-1);
-        if (is_bak) act->cur = led.cur;
-        if (is_ins || is_del || is_bak) return insert_to_action(act, c);
+        bool repeat = is_action_repeat(type, act);
+        if (repeat && type == ACTION_BACKSPACE) act->cur = led.cur;
+        if (repeat) return insert_to_action(act, c);
     }
     action_t act = { .type = type, .cur = led.cur };
     act.text = malloc(sizeof(char) * (act.text_alloc = ALLOC_SIZE));
@@ -77,6 +83,13 @@ static void undo_backspace(action_t *act) {
     for (int i = act->text_sz-1; i >= 0; --i) insert_char(act->text[i]);
 }
 
+static void undo_upper_or_lower(action_t *act, int type) {
+    for (int i = 0; i < act->text_sz; ++i) {
+        if (type == ACTION_TOUPPER) led.text[led.cur.cur+i] = tolower(led.text[led.cur.cur+i]);
+        else led.text[led.cur.cur+i] = toupper(led.text[led.cur.cur+i]);
+    }
+}
+
 void undo_action(void) {
     if (led.action == -1) return;
     action_t *act = &led.actions[led.action--];
@@ -86,6 +99,8 @@ void undo_action(void) {
     case ACTION_INSERT: undo_insert(act); break;
     case ACTION_DELETE: undo_delete(act); break;
     case ACTION_BACKSPACE: undo_backspace(act); break;
+    case ACTION_TOUPPER: case ACTION_TOLOWER:
+        undo_upper_or_lower(act, act->type); break;
     default: break;
     }
     led.is_undo = FALSE;
@@ -100,6 +115,9 @@ void redo_action(void) {
     case ACTION_INSERT: undo_delete(act); break;
     case ACTION_DELETE: undo_insert(act); break;
     case ACTION_BACKSPACE: undo_insert(act); break;
+    case ACTION_TOUPPER: case ACTION_TOLOWER:
+        undo_upper_or_lower(act, act->type == ACTION_TOUPPER? ACTION_TOLOWER : ACTION_TOUPPER);
+        break;
     default: break;
     }
     led.is_undo = FALSE;
@@ -265,7 +283,6 @@ void page_down(void) {
 
 static inline bool isdelim(char c) {
     return isspace(c) || !(isalnum(c) || c == '_');
-    // return (isspace(c) || ispunct(c)) && c != '_';
 }
 
 void move_next_word(void) {
@@ -402,6 +419,32 @@ void copy_sel(void) {
     fclose(file);
     sprintf(cmd, "cat '%s' | xsel -b", path);
     if (system(cmd));
+}
+
+void word_to_lower(void) {
+    if (!is_selecting()) { move_next_word(); move_right(); }
+    selection_t sel = get_selection();
+    goto_start_of_selection();
+    for (led.cur.cur = sel.start; led.cur.cur < sel.end; move_right()) {
+        char *c = &led.text[led.cur.cur];
+        if (!islower(*c) && isalpha(*c)) {
+            if (!led.is_undo) append_action(ACTION_TOLOWER, *c);
+            *c = tolower(*c);
+        }
+    }
+}
+
+void word_to_upper(void) {
+    if (!is_selecting()) { move_next_word(); move_right(); }
+    selection_t sel = get_selection();
+    goto_start_of_selection();
+    for (led.cur.cur = sel.start; led.cur.cur < sel.end; move_right()) {
+        char *c = &led.text[led.cur.cur];
+        if (!isupper(*c) && isalpha(*c)) {
+            if (!led.is_undo) append_action(ACTION_TOUPPER, *c);
+            *c = toupper(*c);
+        }
+    }
 }
 
 static inline bool is_selected(int i) {
@@ -604,6 +647,10 @@ static void update_insert(int ch) {
         undo_action(); break;
     case CTRL('y'):
         redo_action(); break;
+    case CTRL('u'):
+        word_to_upper(); break;
+    case CTRL('l'):
+        word_to_lower(); break;
     case KEY_LEFT:
         move_left(); break;
     case KEY_SLEFT:

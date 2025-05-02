@@ -21,7 +21,7 @@ typedef struct cursor_t {
 enum { MODE_NONE, MODE_FIND, MODE_GOTO, MODE_OPEN, MODE_REPLACE, MODE_COMMAND };
 
 typedef struct {
-    enum { ACTION_INSERT, ACTION_DELETE, ACTION_BACKSPACE } type;
+    enum { ACTION_INSERT, ACTION_DELETE, ACTION_BACKSPACE, ACTION_TOUPPER, ACTION_TOLOWER } type;
     cursor_t cur;
     int text_sz, text_alloc;
     char *text;
@@ -52,6 +52,8 @@ selection_t get_selection(void);
 bool is_selecting(void);
 void remove_sel(void);
 void copy_sel(void);
+void word_to_lower(void);
+void word_to_upper(void);
 void find_string(char *to_find);
 void replace_string(char *to_replace, char *str);
 void goto_line(long line);
