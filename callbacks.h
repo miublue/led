@@ -8,5 +8,6 @@ void command_load(void);
 void command_open(void);
 void command_save(void);
 void command_quit(void);
+void command_syntax(void);
 
 #endif

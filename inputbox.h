@@ -1,5 +1,5 @@
-#ifndef _INPUTBOX_H
-#define _INPUTBOX_H
+#ifndef __INPUTBOX_H
+#define __INPUTBOX_H
 
 #include <inttypes.h>
 
@@ -15,5 +15,6 @@ typedef struct inputbox_t {
 void input_update(inputbox_t *ib, int key);
 void input_render(inputbox_t *ib, int x, int y, int w);
 void input_reset(inputbox_t *ib);
+void input_set(inputbox_t *ib, char *text, int sz);
 
 #endif

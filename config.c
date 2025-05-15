@@ -3,24 +3,27 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <ctype.h>
-#include "config.h"
 
 #define LENGTH(x) (sizeof(x)/sizeof((x)[0]))
 
+#include "config.h"
 #include "callbacks.h"
+#include "led.h"
 
 static struct { char *name; cfg_callback_t callback; } _config_commands[] = {
-    { "set",  command_set },
-    { "open", command_open },
-    { "load", command_load },
-    { "save", command_save },
-    { "quit", command_quit },
+    { "set",    command_set },
+    { "open",   command_open },
+    { "load",   command_load },
+    { "save",   command_save },
+    { "quit",   command_quit },
+    { "syntax", command_syntax },
 };
 
 static struct { char *key; cfg_value_t val; } _config_values[NUM_CONFIG_VALUES] = {
-    [TAB_WIDTH]    = { "tabwidth", CVAL_INT(4) },
-    [EXPAND_TAB]   = { "expandtab", CVAL_BOOL(true) },
-    [LINE_NUMBER]  = { "linenumber", CVAL_BOOL(false) },
+    [CFG_TAB_WIDTH]    = { "tabwidth",   CVAL_INT(4) },
+    [CFG_EXPAND_TAB]   = { "expandtab",  CVAL_BOOL(true) },
+    [CFG_LINE_NUMBER]  = { "linenumber", CVAL_BOOL(false) },
+    [CFG_HIGHLIGHT]    = { "highlight",  CVAL_BOOL(true) },
 };
 
 static struct { char *text; int sz, cur; } cfg;
@@ -98,6 +101,7 @@ void cfg_parse(char *text, int sz) {
         for (int i = 0; i < LENGTH(_config_commands); ++i) {
             if (cfg_compare_tok(tok, _config_commands[i].name)) {
                 _config_commands[i].callback();
+                parse_tokens();
                 break;
             }
         }

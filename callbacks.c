@@ -43,6 +43,14 @@ void command_quit(void) {
     exit_program();
 }
 
+void command_syntax(void) {
+    char *name = parse_string();
+    if (!name) return;
+    load_syntax(name);
+    parse_tokens();
+    free(name);
+}
+
 static inline char* parse_string(void) {
     cfg_token_t tok = cfg_next_token();
     if (!tok.sz) return NULL;
