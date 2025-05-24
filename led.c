@@ -116,7 +116,7 @@ static void _undo_upper_or_lower(action_t *act, int type) {
 }
 
 void undo_action(void) {
-    if (led.action == -1) return;
+    if (led.action == -1 || led.readonly) return;
     action_t *act = &led.actions[led.action--];
     led.cur = act->cur;
     led.is_undo = TRUE;
@@ -133,7 +133,7 @@ void undo_action(void) {
 }
 
 void redo_action(void) {
-    if (led.action+1 == led.actions_sz) return;
+    if (led.action+1 == led.actions_sz || led.readonly) return;
     action_t *act = &led.actions[++led.action];
     led.cur = act->cur;
     led.is_undo = TRUE;
@@ -506,6 +506,7 @@ void copy_selection(void) {
 }
 
 void word_to_lower(void) {
+    if (led.readonly) return;
     if (!is_selecting()) { move_next_word(); move_right(); }
     selection_t sel = get_selection();
     _goto_start_of_selection();
@@ -520,6 +521,7 @@ void word_to_lower(void) {
 }
 
 void word_to_upper(void) {
+    if (led.readonly) return;
     if (!is_selecting()) { move_next_word(); move_right(); }
     selection_t sel = get_selection();
     _goto_start_of_selection();

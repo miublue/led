@@ -10,7 +10,7 @@
 #ifndef _USE_COLOR
 #define _USE_COLOR 0
 #endif
-
+// XXX: make colors (and, perhaps, syntax highlighting) customizable at runtime
 #if _USE_COLOR
 #define COLOR_STATUS     COLOR_RED
 #define COLOR_IDENTIFIER COLOR_WHITE
