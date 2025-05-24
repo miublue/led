@@ -11,6 +11,7 @@ void command_set(void) {
     char *key = parse_string();
     if (!key) return;
     cfg_token_t tok_val = cfg_next_token();
+    if (!tok_val.sz) return;
     cfg_value_t *val = cfg_get_value_key(key);
     free(key);
     if (val) {

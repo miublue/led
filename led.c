@@ -384,6 +384,7 @@ void move_prev_word(void) {
 }
 
 // XXX: allow for adding/removing multiple characters at a time
+//      also UTF-8 lmao
 void insert_char(int ch) {
     if (led.readonly) return;
     if (++led.text_sz >= led.text_alloc)
