@@ -50,9 +50,9 @@ static inline void _init_syntaxes(void) {
 
 static void _actions_append(action_t act) {
     if (led.action+1 < led.actions_sz) {
-        for (int i = led.action+1; i < led.actions_sz; ++i) {
-            free(led.actions[i].text);
-            led.actions[i].text_sz = 0;
+        for (int i = led.actions_sz+1; i < led.actions_sz; ++i) {
+            if (led.actions[i].text_alloc) free(led.actions[i].text);
+            memset(&led.actions[i], 0, sizeof(action_t));
         }
         led.actions_sz = led.action+1;
     }
@@ -63,9 +63,9 @@ static void _actions_append(action_t act) {
 
 static void _free_actions(void) {
     for (int i = 0; i < led.actions_sz; ++i) {
-        if (led.actions[i].text_sz) free(led.actions[i].text);
+        if (led.actions[i].text_alloc) free(led.actions[i].text);
     }
-    free(led.actions);
+    if (led.actions) free(led.actions);
 }
 
 static void _insert_to_action(action_t *act, char c) {
@@ -96,19 +96,23 @@ static void _append_action(int type, char c) {
     _actions_append(act);
 }
 
-static void _undo_insert(action_t *act) {
-    for (int i = 0; i < act->text_sz; ++i) remove_char(FALSE);
+static inline void _undo_insert(action_t *act) {
+    led.cur.sel = (led.cur.cur+act->text_sz)-1;
+    remove_selection();
 }
 
-static void _undo_delete(action_t *act) {
-    for (int i = 0; i < act->text_sz; ++i) insert_char(act->text[i]);
+static inline void _undo_delete(action_t *act) {
+    insert_text((int*)act->text, act->text_sz);
 }
 
-static void _undo_backspace(action_t *act) {
-    for (int i = act->text_sz-1; i >= 0; --i) insert_char(act->text[i]);
+static inline void _undo_backspace(action_t *act) {
+    char text[act->text_sz+1];
+    for (int i = 0; i < act->text_sz; ++i)
+        text[(act->text_sz-1)-i] = act->text[i];
+    insert_text((int*)text, act->text_sz);
 }
 
-static void _undo_upper_or_lower(action_t *act, int type) {
+static inline void _undo_upper_or_lower(action_t *act, int type) {
     for (int i = 0; i < act->text_sz; ++i) {
         if (type == ACTION_TOUPPER) led.text[led.cur.cur+i] = tolower(led.text[led.cur.cur+i]);
         else led.text[led.cur.cur+i] = toupper(led.text[led.cur.cur+i]);
@@ -297,6 +301,7 @@ open_file_fail:
 
 void write_file(char *path) {
     if (led.readonly) return;
+    if (!path) path = led.file;
     FILE *file = fopen(path, "w");
     fwrite(led.text, 1, led.text_sz, file);
     fclose(file);
@@ -383,8 +388,20 @@ void move_prev_word(void) {
     else while (led.cur.cur > 1 && !_is_delim(led.text[led.cur.cur-1])) move_left();
 }
 
-// XXX: allow for adding/removing multiple characters at a time
-//      also UTF-8 lmao
+// XXX: UTF-8 lmao
+void insert_text(int *buf, int sz) {
+    if (led.readonly) return;
+    if ((led.text_sz += sz) >= led.text_alloc)
+        led.text = realloc(led.text, (led.text_alloc += sz+ALLOC_SIZE));
+    memmove(led.text+led.cur.cur+sz, led.text+led.cur.cur, led.text_sz-led.cur.cur);
+    memmove(led.text+led.cur.cur, buf, sz);
+    _count_lines();
+    for (int i = 0; i < sz; ++i) {
+        if (!led.is_undo) _append_action(ACTION_INSERT, buf[i]);
+        move_right();
+    }
+}
+
 void insert_char(int ch) {
     if (led.readonly) return;
     if (++led.text_sz >= led.text_alloc)
@@ -436,6 +453,19 @@ void remove_char(bool backspace) {
     _count_lines();
 }
 
+void remove_prev_word(void) {
+    if (led.cur.cur == 0) return;
+    if (_is_delim(led.text[led.cur.cur])) move_left();
+    led.cur.sel = led.cur.cur;
+    move_prev_word();
+    remove_selection();
+}
+
+void remove_next_word(void) {
+    move_next_word();
+    remove_selection();
+}
+
 void find_string(char *to_find) {
     char *str = NULL;
     if ((str = strstr(led.text+led.cur.cur+1, to_find))) {
@@ -481,11 +511,19 @@ void remove_selection(void) {
     }
     selection_t sel = get_selection();
     _goto_start_of_selection();
-    for (int i = sel.start; i <= sel.end; ++i)
-        remove_char(FALSE);
+    // make sure it doesn't try to delete text out of bounds
+    if (sel.end >= led.text_sz-1) sel.end = led.text_sz-2;
+    if (!led.is_undo) {
+        for (int i = sel.start; i <= sel.end; ++i)
+            _append_action(ACTION_DELETE, led.text[i]);
+    }
+    memmove(led.text+sel.start, led.text+sel.end+1, led.text_sz-sel.end);
+    led.text_sz -= (sel.end-sel.start)+1;
+    _count_lines();
 }
 
 void copy_selection(void) {
+    // XXX: proper copy/paste
     int cur = led.cur.cur;
     bool not_sel = FALSE;
     if (!is_selecting()) {
@@ -496,16 +534,13 @@ void copy_selection(void) {
     selection_t sel = get_selection();
     led.cur.cur = cur;
     if (not_sel) led.cur.sel = led.cur.cur;
-    char path[1024] = {0};
-    char cmd[2048] = {0};
-    sprintf(path, "%s/.ledsel", getenv("HOME"));
-    FILE *file = fopen(path, "w");
+    FILE *file = fopen("/tmp/ledsel", "w");
     fwrite(led.text+sel.start, 1, sel.end-sel.start+1, file);
     fclose(file);
-    sprintf(cmd, "cat '%s' | xsel -b", path);
-    if (system(cmd));
+    if (system("cat '/tmp/ledsel' | xsel -b"));
 }
 
+// XXX: to_lower and to_upper are wonky with undo/redo
 void word_to_lower(void) {
     if (led.readonly) return;
     if (!is_selecting()) { move_next_word(); move_right(); }
@@ -854,20 +889,11 @@ static void _update_insert(int ch) {
         break;
     case 528: case 531: case 333: // ctrl + del
         if (is_selecting()) remove_selection();
-        else {
-            move_next_word();
-            remove_selection();
-        }
+        else remove_next_word();
         break;
     case 8: case 127: // ctrl + backspace
         if (is_selecting()) remove_selection();
-        else {
-            if (led.cur.cur == 0) break;
-            if (_is_delim(led.text[led.cur.cur])) move_left();
-            led.cur.sel = led.cur.cur;
-            move_prev_word();
-            remove_selection();
-        }
+        else remove_prev_word();
         break;
     default:
         if (!isprint(ch)) break;
