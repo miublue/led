@@ -4,10 +4,10 @@ Tiny ncurses text editor that i made for fun. It is not a serious project.
 ## Installation
 Compile with:
 ```sh
-# Colors are off by default
+# Colors are on by default (only branch syntax)
 make install
-# Use this to enable colors in terminal (only branch syntax)
-make install USECOLOR=1
+# Use this to disable colors
+make install USECOLOR=
 ```
 
 ## Screenshot
