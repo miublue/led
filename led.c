@@ -98,7 +98,8 @@ static void _append_action(int type, char c) {
 
 static inline void _undo_insert(action_t *act) {
     led.cur.sel = (led.cur.cur+act->text_sz)-1;
-    remove_selection();
+    if (led.cur.sel == led.cur.cur) remove_char(FALSE);
+    else remove_selection();
 }
 
 static inline void _undo_delete(action_t *act) {
