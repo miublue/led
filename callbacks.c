@@ -35,7 +35,10 @@ void command_open(void) {
 
 void command_save(void) {
     char *file = parse_string();
-    if (!file) return;
+    if (!file) {
+        write_file(NULL);
+        return;
+    }
     write_file(file);
     free(file);
 }
