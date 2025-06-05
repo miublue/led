@@ -50,7 +50,7 @@ static inline void _init_syntaxes(void) {
 
 static void _actions_append(action_t act) {
     if (led.action+1 < led.actions_sz) {
-        for (int i = led.actions_sz+1; i < led.actions_sz; ++i) {
+        for (int i = led.action+1; i < led.actions_sz; ++i) {
             if (led.actions[i].text_alloc) free(led.actions[i].text);
             memset(&led.actions[i], 0, sizeof(action_t));
         }
@@ -239,11 +239,14 @@ static void _quit_curses(void) {
 }
 
 void exit_program(void) {
+    // XXX: i'm getting double-free corruption, my solution is to leave it to the OS
+/*
     if (led.file) free(led.file);
     if (led.text) free(led.text);
     if (led.lines) free(led.lines);
     if (led.tokens) free(led.tokens);
     if (led.actions) _free_actions();
+*/
     _quit_curses();
     exit(0);
 }
