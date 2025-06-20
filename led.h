@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include "inputbox.h"
 
+#define LENGTH(x) (sizeof(x)/sizeof((x)[0]))
 #define CTRL(c) ((c) & 0x1f)
 #define ALLOC_SIZE 512
 
@@ -12,20 +13,28 @@
 #endif
 // XXX: make colors (and, perhaps, syntax highlighting) customizable at runtime
 #if _USE_COLOR
+
 #define COLOR_STATUS     COLOR_RED
 #define COLOR_IDENTIFIER COLOR_WHITE
 #define COLOR_KEYWORD    COLOR_BLUE
 #define COLOR_OPERATOR   COLOR_BLUE
 #define COLOR_LITERAL    COLOR_RED
 #define COLOR_COMMENT    COLOR_GREEN
-#endif
 
+#define ATTR_STATUS     A_BOLD
+#define ATTR_IDENTIFIER 0
+#define ATTR_KEYWORD    0
+#define ATTR_OPERATOR   0
+#define ATTR_LITERAL    0
+#define ATTR_COMMENT    A_ITALIC
+#else
 #define ATTR_STATUS     A_BOLD
 #define ATTR_IDENTIFIER 0
 #define ATTR_KEYWORD    A_BOLD
 #define ATTR_OPERATOR   A_BOLD
 #define ATTR_LITERAL    0
 #define ATTR_COMMENT    A_ITALIC
+#endif
 
 enum { PAIR_NORMAL = 0, PAIR_STATUS, PAIR_LITERAL, PAIR_KEYWORD, PAIR_OPERATOR, PAIR_COMMENT };
 

@@ -42,7 +42,7 @@ token_t default_next_token(syntax_t *syntax, lexer_t *lex) {
     if (lex->cur+1 < lex->text_sz && lex->text[lex->cur] == '/') {
         if (lex->text[lex->cur+1] == '/') {
             tok.type = LTK_COMMENT;
-            while (lex->text[lex->cur] != '\n' && lex->cur < lex->text_sz) LEX_INC(1)
+            while (lex->text[lex->cur] != '\n' && lex->cur < lex->text_sz) LEX_INC(1);
             return tok;
         }
         else if (lex->text[lex->cur+1] == '*') {

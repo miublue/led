@@ -4,8 +4,6 @@
 #include <stdio.h>
 #include <ctype.h>
 
-#define LENGTH(x) (sizeof(x)/sizeof((x)[0]))
-
 #include "config.h"
 #include "callbacks.h"
 #include "led.h"

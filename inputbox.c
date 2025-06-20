@@ -9,7 +9,11 @@ static inline void _input_insert_char(inputbox_t *ib, int c) {
     ib->text[ib->pos++] = c;
 }
 
-static inline void _input_remove_char(inputbox_t *ib) {
+static inline void _input_remove_char(inputbox_t *ib, bool backspace) {
+    if (backspace) {
+        if (ib->pos == 0) return;
+        --ib->pos;
+    }
     memmove(ib->text+ib->pos, ib->text+ib->pos+1, ib->text_sz-ib->pos);
     ib->text_sz--;
 }
@@ -32,8 +36,33 @@ static inline void _input_prev_word(inputbox_t *ib) {
     else while (ib->pos > 0 && !_input_isdelim(ib->text[ib->pos-1])) --ib->pos;
 }
 
+static inline void _input_remove_next_word(inputbox_t *ib) {
+    if (ib->pos >= ib->text_sz) return;
+    int p = ib->pos;
+    _input_next_word(ib);
+    for (; ib->pos > p && ib->pos > 0; --ib->pos) _input_remove_char(ib, FALSE);
+    _input_remove_char(ib, FALSE);
+}
+
+static inline void _input_remove_prev_word(inputbox_t *ib) {
+    if (ib->pos == 0) return;
+    int p = ib->pos;
+    _input_prev_word(ib);
+    for (; ib->pos <= p && ib->pos < ib->text_sz; --p) _input_remove_char(ib, FALSE);
+}
+
 void input_update(inputbox_t *ib, int key) {
     switch (key) {
+#ifdef _USE_MTM /* since i sometimes use the mtm terminal multiplexer */
+    case 200: {
+        switch (getch()) {
+        case 170: _input_prev_word(ib); break;
+        case 185: _input_next_word(ib); break;
+        case 144: _input_remove_next_word(ib); break;
+        default: break;
+        }
+    } break;
+#endif
     case KEY_LEFT:
         if (ib->pos > 0) --ib->pos;
         break;
@@ -46,36 +75,25 @@ void input_update(inputbox_t *ib, int key) {
     case 560: case 569: case 572: // ctrl + right
         _input_next_word(ib);
         break;
-    case KEY_UP:
-    case KEY_HOME:
+    case KEY_UP: case KEY_HOME:
         ib->pos = 0;
         break;
-    case KEY_DOWN:
-    case KEY_END:
+    case KEY_DOWN: case KEY_END:
         ib->pos = ib->text_sz;
         break;
     case KEY_DC:
         if (ib->pos >= ib->text_sz) break;
-        _input_remove_char(ib);
+        _input_remove_char(ib, FALSE);
         break;
     case KEY_BACKSPACE:
-        if (ib->pos == 0) break;
-        --ib->pos;
-        _input_remove_char(ib);
+        _input_remove_char(ib, TRUE);
         break;
-    case 528: case 531: { // ctrl + del
-        if (ib->pos >= ib->text_sz) break;
-        int p = ib->pos;
-        _input_next_word(ib);
-        for (; ib->pos > p; --ib->pos) _input_remove_char(ib);
-        _input_remove_char(ib);
-    } break;
-    case 8: { // ctrl + backspace
-        if (ib->pos == 0) break;
-        int p = ib->pos;
-        _input_prev_word(ib);
-        for (; ib->pos < p; --p) _input_remove_char(ib);
-    } break;
+    case 528: case 531: // ctrl + del
+        _input_remove_next_word(ib);
+        break;
+    case 127: case 8: // ctrl + backspace
+        _input_remove_prev_word(ib);
+        break;
     default:
         if (isprint(key)) _input_insert_char(ib, key);
         break;

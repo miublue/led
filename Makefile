@@ -1,7 +1,12 @@
 USECOLOR ?= 1
+CFLAGS ?=
 
 ifdef USECOLOR
-	CFLAGS := -D_USE_COLOR
+	CFLAGS += -D_USE_COLOR
+endif
+
+ifdef USEMTM
+	CFLAGS += -D_USE_MTM
 endif
 
 all:
