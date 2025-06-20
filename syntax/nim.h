@@ -35,7 +35,7 @@ static token_t _nim_next_token(syntax_t *syntax, lexer_t *lex) {
         tok.type = LTK_COMMENT;
         if (lex->cur+2 < lex->text_sz && lex->text[lex->cur+1] == '[') {
             while (lex->cur+2 < lex->text_sz && strncmp(lex->text+lex->cur, "]#", 2) != 0) LEX_INC(1);
-            LEX_INC(1);
+            LEX_INC(2);
             return tok;
         }
         while (lex->text[lex->cur] != '\n' && lex->cur < lex->text_sz) LEX_INC(1);
