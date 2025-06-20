@@ -5,7 +5,7 @@
 #include <ctype.h>
 #include "parser.h"
 
-static const char *_MAKEFILE_EXTENSIONS[] = {"makefile", "Makefile", "MAKEFILE", ".mk", NULL};
+static const char *_MAKEFILE_EXTENSIONS[] = {"makefile", "Makefile", "MAKEFILE", ".mk", ".make", ".mkfile", NULL};
 static const char *_MAKEFILE_KEYWORDS[] = {
     "define", "undefine", "endef", "ifeq", "ifdef", "ifneq", "ifndef", "endif", "else",
     "include", "sinclude", "override", "export", "unexport", "private", "vpath", NULL

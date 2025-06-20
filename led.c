@@ -28,24 +28,42 @@ static struct {
 } led;
 
 // XXX: adding new config options and languages is a pain in the ass
+#include "syntax/makefile.h"
+#include "syntax/markdown.h"
+#include "syntax/asm.h"
 #include "syntax/c.h"
 #include "syntax/d.h"
 #include "syntax/sh.h"
 #include "syntax/python.h"
+#include "syntax/lua.h"
 #include "syntax/ledrc.h"
-#include "syntax/makefile.h"
+#include "syntax/nim.h"
+#include "syntax/sml.h"
+#include "syntax/lisp.h"
+#include "syntax/scheme.h"
+#include "syntax/rust.h"
+#include "syntax/zig.h"
 
 static syntax_t syntaxes[512] = {0};
 static int num_syntaxes = 0;
 
 static inline void _init_syntaxes(void) {
     num_syntaxes = 0;
+    syntaxes[num_syntaxes++] = syntax_makefile();
+    syntaxes[num_syntaxes++] = syntax_markdown();
+    syntaxes[num_syntaxes++] = syntax_asm();
     syntaxes[num_syntaxes++] = syntax_c();
     syntaxes[num_syntaxes++] = syntax_d();
     syntaxes[num_syntaxes++] = syntax_sh();
     syntaxes[num_syntaxes++] = syntax_python();
+    syntaxes[num_syntaxes++] = syntax_lua();
     syntaxes[num_syntaxes++] = syntax_ledrc();
-    syntaxes[num_syntaxes++] = syntax_makefile();
+    syntaxes[num_syntaxes++] = syntax_nim();
+    syntaxes[num_syntaxes++] = syntax_sml();
+    syntaxes[num_syntaxes++] = syntax_lisp();
+    syntaxes[num_syntaxes++] = syntax_scheme();
+    syntaxes[num_syntaxes++] = syntax_rust();
+    syntaxes[num_syntaxes++] = syntax_zig();
 }
 
 static void _actions_append(action_t act) {
@@ -787,6 +805,42 @@ FUPDATE(_update_command, cfg_parse(led.input.text, led.input.text_sz))
 
 static void _update_insert(int ch) {
     switch (ch) {
+#ifdef _USE_MTM
+    case 200: {
+        switch (getch()) {
+        case 160: goto_line(1); break;
+        case 155: goto_line(led.text_sz); break;
+        case 170: move_prev_word(); break;
+        case 171: return move_prev_word();
+        case 185: move_next_word(); break;
+        case 186: return move_next_word();
+        case 144:
+            if (is_selecting()) remove_selection();
+            else remove_next_word();
+            break;
+        default: break;
+        }
+    } break;
+    case 198: {
+        switch (getch()) {
+        case 137: return move_left();
+        case 146: return move_right();
+        case 135: return move_home();
+        case 130: return move_end();
+        case 142: return page_up();
+        case 140: return page_down();
+        default: break;
+        }
+    } break;
+    case 197: {
+        switch (getch()) {
+        case 145: return move_up();
+        case 144: return move_down();
+        default: break;
+        }
+    } break;
+#endif
+
     case CTRL('q'):
         exit_program();
         break;
@@ -865,13 +919,13 @@ static void _update_insert(int ch) {
         goto_line(1); break;
     case 542: case 539: case 334: // ctrl + end
         goto_line(led.lines_sz); break;
-    case KEY_PPAGE:
+    case KEY_PPAGE: // pageup
         page_up(); break;
-    case KEY_SPREVIOUS:
+    case KEY_SPREVIOUS: // shift + pageup
         return page_up();
-    case KEY_NPAGE:
+    case KEY_NPAGE: // pagedown
         page_down(); break;
-    case KEY_SNEXT:
+    case KEY_SNEXT: // shift + pagedown
         return page_down();
     case '\n':
         if (is_selecting()) remove_selection();
