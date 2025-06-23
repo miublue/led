@@ -16,7 +16,7 @@ static const char *_LUA_KEYWORDS[] = {
 #define LEX_INC(AMOUNT) { tok.end += AMOUNT; lex->cur += AMOUNT; }
 
 static inline bool _lua_is_num(char c) {
-    return strchr("xX", c) != NULL || isxdigit(c);
+    return strchr("xXbBoO.", c) != NULL || isxdigit(c);
 }
 
 static token_t _lua_next_token(syntax_t *syntax, lexer_t *lex) {

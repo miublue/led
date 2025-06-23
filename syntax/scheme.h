@@ -463,7 +463,7 @@ static const char *_SCHEME_KEYWORDS[] = {
 #define LEX_INC(AMOUNT) { tok.end += AMOUNT; lex->cur += AMOUNT; }
 
 static inline bool _scheme_is_num(char c) {
-    return strchr("xXoO", c) != NULL || isxdigit(c);
+    return strchr("xXbBoO.", c) != NULL || isxdigit(c);
 }
 
 static inline bool _scheme_is_operator(syntax_t *syntax, char c) {

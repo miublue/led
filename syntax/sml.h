@@ -24,7 +24,7 @@ NULL,
 #define LEX_INC(AMOUNT) { tok.end += AMOUNT; lex->cur += AMOUNT; }
 
 static inline bool _sml_is_num(char c) {
-    return strchr("xXoO", c) != NULL || isxdigit(c);
+    return strchr("xXbBoO.", c) != NULL || isxdigit(c);
 }
 
 static token_t _sml_next_token(syntax_t *syntax, lexer_t *lex) {

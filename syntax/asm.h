@@ -21,7 +21,7 @@ static inline bool _asm_is_word(syntax_t *syntax, char c) {
 }
 
 static inline bool _asm_is_num(char c) {
-    return strchr("xX", c) != NULL || isxdigit(c);
+    return strchr("xXbBoO._", c) != NULL || isxdigit(c);
 }
 
 static inline bool _asm_skip_comment(lexer_t *lex, token_t *tok) {

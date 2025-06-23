@@ -30,7 +30,7 @@ void default_skip_space(syntax_t *syntax, lexer_t *lex) {
 #define LEX_INC(AMOUNT) { tok.end += AMOUNT; lex->cur += AMOUNT; }
 
 static inline bool _is_num(char c) {
-    return strchr("xX", c) != NULL || isxdigit(c);
+    return strchr("xXbBoO._", c) != NULL || isxdigit(c);
 }
 
 token_t default_next_token(syntax_t *syntax, lexer_t *lex) {

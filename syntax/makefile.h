@@ -61,11 +61,11 @@ static inline void _makefile_skip_bracket(syntax_t *syntax, lexer_t *lex, token_
 }
 
 static bool _makefile_is_word(syntax_t *syntax, char c) {
-    return strchr("#\'\"`$(){}[]?:=,", c) == NULL && !isspace(c);
+    return strchr("#\'\"`$(){}[]+?:=,", c) == NULL && !isspace(c);
 }
 
 static inline bool _makefile_is_num(char c) {
-    return strchr("xXbB", c) != NULL || isxdigit(c);
+    return strchr("xXbBoO.", c) != NULL || isxdigit(c);
 }
 
 static token_t _makefile_next_token(syntax_t *syntax, lexer_t *lex) {

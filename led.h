@@ -13,13 +13,12 @@
 #endif
 // XXX: make colors (and, perhaps, syntax highlighting) customizable at runtime
 #if _USE_COLOR
-
 #define COLOR_STATUS     COLOR_RED
 #define COLOR_IDENTIFIER COLOR_WHITE
-#define COLOR_KEYWORD    COLOR_BLUE
-#define COLOR_OPERATOR   COLOR_BLUE
-#define COLOR_LITERAL    COLOR_RED
-#define COLOR_COMMENT    COLOR_GREEN
+#define COLOR_KEYWORD    COLOR_YELLOW
+#define COLOR_OPERATOR   COLOR_YELLOW
+#define COLOR_LITERAL    COLOR_GREEN
+#define COLOR_COMMENT    COLOR_CYAN
 
 #define ATTR_STATUS     A_BOLD
 #define ATTR_IDENTIFIER 0
@@ -30,10 +29,10 @@
 #else
 #define ATTR_STATUS     A_BOLD
 #define ATTR_IDENTIFIER 0
-#define ATTR_KEYWORD    A_BOLD
-#define ATTR_OPERATOR   A_BOLD
-#define ATTR_LITERAL    0
-#define ATTR_COMMENT    A_ITALIC
+#define ATTR_KEYWORD    A_DIM|A_BOLD
+#define ATTR_OPERATOR   A_DIM
+#define ATTR_LITERAL    A_DIM
+#define ATTR_COMMENT    A_DIM|A_ITALIC
 #endif
 
 enum { PAIR_NORMAL = 0, PAIR_STATUS, PAIR_LITERAL, PAIR_KEYWORD, PAIR_OPERATOR, PAIR_COMMENT };
@@ -78,8 +77,10 @@ void insert_char(int ch);
 void remove_char(bool backspace);
 void remove_next_word(void);
 void remove_prev_word(void);
-void insert_tab(void);
-void remove_tab(void);
+void indent(void);
+void unindent(void);
+void indent_selection(void);
+void unindent_selection(void);
 void undo_action(void);
 void redo_action(void);
 selection_t get_selection(void);

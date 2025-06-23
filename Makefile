@@ -1,4 +1,5 @@
 USECOLOR ?= 1
+USEMTM ?= 1
 CFLAGS ?=
 
 ifdef USECOLOR

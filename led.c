@@ -41,6 +41,7 @@ static struct {
 #include "syntax/sml.h"
 #include "syntax/lisp.h"
 #include "syntax/scheme.h"
+#include "syntax/go.h"
 #include "syntax/rust.h"
 #include "syntax/zig.h"
 
@@ -62,6 +63,7 @@ static inline void _init_syntaxes(void) {
     syntaxes[num_syntaxes++] = syntax_sml();
     syntaxes[num_syntaxes++] = syntax_lisp();
     syntaxes[num_syntaxes++] = syntax_scheme();
+    syntaxes[num_syntaxes++] = syntax_go();
     syntaxes[num_syntaxes++] = syntax_rust();
     syntaxes[num_syntaxes++] = syntax_zig();
 }
@@ -435,7 +437,7 @@ void insert_char(int ch) {
     move_right();
 }
 
-void insert_tab(void) {
+void indent(void) {
     if (led.readonly) return;
     int cur = led.cur.cur, add = 1;
     led.cur.cur = led.lines[led.cur.line].start;
@@ -450,7 +452,7 @@ void insert_tab(void) {
     if (led.cur.cur < led.lines[led.cur.line].start) led.cur.cur = led.lines[led.cur.line].start;
 }
 
-void remove_tab(void) {
+void unindent(void) {
     if (led.readonly) return;
     int cur = led.cur.cur, rem = 1;
     led.cur.cur = led.lines[led.cur.line].start;
@@ -591,6 +593,35 @@ void word_to_upper(void) {
         }
     }
     parse_tokens();
+}
+
+static inline selection_t _get_selection_line_range(void) {
+    selection_t lines = {0};
+    selection_t sel = get_selection();
+    _goto_start_of_selection();
+    for (int i = led.cur.line; i < led.lines_sz; ++i) {
+        const line_t *line = &led.lines[i];
+        if (sel.start >= line->start && sel.start <= line->end)
+            lines.start = i;
+        if (sel.end >= line->start && sel.end <= line->end) {
+            lines.end = i;
+            break;
+        }
+    }
+    return lines;
+}
+
+static inline void _operate_on_lines(void (*fn)(void)) {
+    selection_t range = _get_selection_line_range();
+    for (; led.cur.line < range.end; move_down()) fn();
+}
+
+void indent_selection(void) {
+    _operate_on_lines(indent);
+}
+
+void unindent_selection(void) {
+    _operate_on_lines(unindent);
 }
 
 static inline bool _is_selected(int i) {
@@ -931,9 +962,11 @@ static void _update_insert(int ch) {
         if (is_selecting()) remove_selection();
         insert_char('\n'); break;
     case '\t':
-        insert_tab(); break;
+        if (is_selecting()) indent_selection();
+        indent(); break;
     case KEY_BTAB:
-        remove_tab(); break;
+        if (is_selecting()) unindent_selection();
+        unindent(); break;
     case KEY_DC:
         if (is_selecting()) remove_selection();
         else remove_char(FALSE);

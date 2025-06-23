@@ -39,7 +39,7 @@ static bool _sh_is_operator(syntax_t *syntax, char c) {
 #define LEX_INCP(AMOUNT) { tok->end += AMOUNT; lex->cur += AMOUNT; }
 
 static inline bool _sh_is_num(char c) {
-    return strchr("xX", c) != NULL || isxdigit(c);
+    return strchr("xXbBoO._", c) != NULL || isxdigit(c);
 }
 
 static inline bool _sh_is_bracket(char c) {

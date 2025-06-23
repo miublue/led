@@ -22,7 +22,7 @@ static const char *_NIM_KEYWORDS[] = {
 #define LEX_INC(AMOUNT) { tok.end += AMOUNT; lex->cur += AMOUNT; }
 
 static inline bool _nim_is_num(char c) {
-    return strchr("xXoO_", c) != NULL || isxdigit(c);
+    return strchr("xXbBoO._", c) != NULL || isxdigit(c);
 }
 
 static token_t _nim_next_token(syntax_t *syntax, lexer_t *lex) {

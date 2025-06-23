@@ -28,7 +28,7 @@ static const char *_RUST_KEYWORDS[] = {
 #define LEX_INC(AMOUNT) { tok.end += AMOUNT; lex->cur += AMOUNT; }
 
 static inline bool _rust_is_num(char c) {
-    return strchr("xXoO", c) != NULL || isxdigit(c);
+    return strchr("xXbBoO._", c) != NULL || isxdigit(c);
 }
 
 static token_t _rust_next_token(syntax_t *syntax, lexer_t *lex) {
