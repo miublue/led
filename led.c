@@ -68,6 +68,7 @@ static inline void _init_syntaxes(void) {
     syntaxes[num_syntaxes++] = syntax_zig();
 }
 
+// XXX: occasional segfaults when inserting text after undo
 static void _actions_append(action_t act) {
     if (led.action+1 < led.actions_sz) {
         for (int i = led.action+1; i < led.actions_sz; ++i) {
@@ -836,7 +837,7 @@ FUPDATE(_update_command, cfg_parse(led.input.text, led.input.text_sz))
 
 static void _update_insert(int ch) {
     switch (ch) {
-#ifdef _USE_MTM
+#ifdef _USE_MTM // bruh
     case 200: {
         switch (getch()) {
         case 160: goto_line(1); break;

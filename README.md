@@ -1,5 +1,6 @@
 # led
-Tiny ncurses text editor that i made for fun. It is not a serious project.
+Tiny ncurses text editor that i made for fun.
+It is not a serious project.
 
 ## Installation
 Compile with:
@@ -10,8 +11,9 @@ make install
 make install USECOLOR=
 ```
 
-## Screenshot
+## Screenshots
 My lazy ass didn't feel like recording a screencast.
 
-![screenshot](https://i.imgur.com/7g5LVVK.png)
+![led editing this README](https://i.imgur.com/5hgXcbg.png)
+![led editing https://github.com/miublue/list](https://i.imgur.com/vCngjnX.png)
 
