@@ -13,7 +13,8 @@ static const char *_SML_KEYWORDS[] = {
     "or", "andalso", "orelse", "type", "datatype",
     "exception", "raise", "handle", "functor", "of",
     "struct", "structure", "signature", "sig", "not",
-    "case", "ref", "open", "infixr", "infixl",
+    "case", "ref", "open", "infixr", "infixl", "infix",
+    "div", "mod",
 
     "false", "true", "bool", "int", "float", "list",
     "array", "char", "string", "option", "SOME", "NONE",
@@ -39,12 +40,13 @@ static token_t _sml_next_token(syntax_t *syntax, lexer_t *lex) {
         LEX_INC(2);
         return tok;
     }
-    if (lex->text[lex->cur] == '\"') {
+    if (strchr("\"`", lex->text[lex->cur])) {
+        char match = lex->text[lex->cur];
         tok.type = LTK_LITERAL;
         do {
             int amnt = (lex->text[tok.end] == '\\')? 2 : 1;
             LEX_INC(amnt);
-        } while (lex->text[lex->cur] != '\"' && lex->cur < lex->text_sz);
+        } while (lex->text[lex->cur] != match && lex->cur < lex->text_sz);
         LEX_INC(1);
         return tok;
     }

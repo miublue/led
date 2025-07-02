@@ -124,14 +124,14 @@ static inline void _undo_insert(action_t *act) {
 }
 
 static inline void _undo_delete(action_t *act) {
-    insert_text((int*)act->text, act->text_sz);
+    insert_text(act->text, act->text_sz);
 }
 
 static inline void _undo_backspace(action_t *act) {
     char text[act->text_sz+1];
     for (int i = 0; i < act->text_sz; ++i)
         text[(act->text_sz-1)-i] = act->text[i];
-    insert_text((int*)text, act->text_sz);
+    insert_text(text, act->text_sz);
 }
 
 static inline void _undo_upper_or_lower(action_t *act, int type) {
@@ -320,7 +320,7 @@ void open_file(char *path) {
     return;
 open_file_fail:
     if (file) fclose(file);
-    fprintf(stderr, "Error: Could not open file: %s\n", path);
+    fprintf(stderr, "error: could not open file: %s\n", path);
     exit_program();
 }
 
@@ -414,7 +414,7 @@ void move_prev_word(void) {
 }
 
 // XXX: UTF-8 lmao
-void insert_text(int *buf, int sz) {
+void insert_text(char *buf, int sz) {
     if (led.readonly) return;
     if ((led.text_sz += sz) >= led.text_alloc)
         led.text = realloc(led.text, (led.text_alloc += sz+ALLOC_SIZE));
@@ -548,7 +548,6 @@ void remove_selection(void) {
 }
 
 void copy_selection(void) {
-    // XXX: proper copy/paste
     int cur = led.cur.cur;
     bool not_sel = FALSE;
     if (!is_selecting()) {
@@ -560,9 +559,27 @@ void copy_selection(void) {
     led.cur.cur = cur;
     if (not_sel) led.cur.sel = led.cur.cur;
     FILE *file = fopen("/tmp/ledsel", "w");
+    if (!file) return;
     fwrite(led.text+sel.start, 1, sel.end-sel.start+1, file);
     fclose(file);
     if (system("cat '/tmp/ledsel' | xsel -b"));
+}
+
+void paste_text(void) {
+    // a bit roundabout, but probably still faster than pasting
+    // from terminal and inserting the text character by character
+    if (system("xsel -bo > /tmp/ledsel"));
+    int sz;
+    char *buf;
+    FILE *file = fopen("/tmp/ledsel", "r");
+    if (!file) return;
+    fseek(file, 0, SEEK_END);
+    buf = malloc((sz = ftell(file)) * sizeof(char));
+    fseek(file, 0, SEEK_SET);
+    if (fread(buf, sz, sizeof(char), file));
+    fclose(file);
+    insert_text(buf, sz);
+    free(buf);
 }
 
 // XXX: to_lower and to_upper are wonky with undo/redo
@@ -706,7 +723,7 @@ static void _render_text(void) {
     while (led.cur.line-led.cur.off >= led.wh-1) { move_up(); led.cur.sel = led.cur.cur; }
     if (cfg_get_value_idx(CFG_LINE_NUMBER)->as_bool) {
         char linenu[16];
-        sprintf(linenu, " %d ", led.lines_sz);
+        sprintf(linenu, " %ld ", led.lines_sz);
         off = strlen(linenu);
     }
     if (cur_off+off > led.ww-2) off = (led.ww-2)-cur_off;
@@ -882,6 +899,9 @@ static void _update_insert(int ch) {
     case CTRL('c'):
         copy_selection();
         break;
+    case CTRL('v'):
+        paste_text();
+        break;
     case CTRL('x'):
         copy_selection();
         remove_selection();
@@ -1011,7 +1031,7 @@ static void _update(void) {
 
 int main(int argc, char **argv) {
     if (argc < 2) {
-        fprintf(stderr, "Usage: %s <file>\n", argv[0]);
+        fprintf(stderr, "usage: %s <file>\n", argv[0]);
         return 1;
     }
     open_file(strdup(argv[1]));
