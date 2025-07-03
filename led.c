@@ -68,7 +68,7 @@ static inline void _init_syntaxes(void) {
     syntaxes[num_syntaxes++] = syntax_zig();
 }
 
-// XXX: occasional segfaults when inserting text after undo
+// XXX: occasional segfaults when inserting text after undo/paste
 static void _actions_append(action_t act) {
     if (led.action+1 < led.actions_sz) {
         for (int i = led.action+1; i < led.actions_sz; ++i) {
@@ -103,6 +103,7 @@ static bool _is_action_repeat(int type, action_t *act) {
     }
 }
 
+// XXX: appending to action character by character is also kinda slow
 static void _append_action(int type, char c) {
     if (led.action != -1 && led.actions[led.action].type == type) {
         action_t *act = &led.actions[led.action];
@@ -124,14 +125,14 @@ static inline void _undo_insert(action_t *act) {
 }
 
 static inline void _undo_delete(action_t *act) {
-    insert_text(act->text, act->text_sz);
+    insert_text((int*)act->text, act->text_sz);
 }
 
 static inline void _undo_backspace(action_t *act) {
     char text[act->text_sz+1];
     for (int i = 0; i < act->text_sz; ++i)
         text[(act->text_sz-1)-i] = act->text[i];
-    insert_text(text, act->text_sz);
+    insert_text((int*)text, act->text_sz);
 }
 
 static inline void _undo_upper_or_lower(action_t *act, int type) {
@@ -414,10 +415,10 @@ void move_prev_word(void) {
 }
 
 // XXX: UTF-8 lmao
-void insert_text(char *buf, int sz) {
+void insert_text(int *buf, int sz) {
     if (led.readonly) return;
     if ((led.text_sz += sz) >= led.text_alloc)
-        led.text = realloc(led.text, (led.text_alloc += sz+ALLOC_SIZE));
+        led.text = realloc(led.text, sizeof(char) * (led.text_alloc += sz+ALLOC_SIZE));
     memmove(led.text+led.cur.cur+sz, led.text+led.cur.cur, led.text_sz-led.cur.cur);
     memmove(led.text+led.cur.cur, buf, sz);
     _count_lines();
@@ -428,14 +429,7 @@ void insert_text(char *buf, int sz) {
 }
 
 void insert_char(int ch) {
-    if (led.readonly) return;
-    if (++led.text_sz >= led.text_alloc)
-        led.text = realloc(led.text, (led.text_alloc += ALLOC_SIZE));
-    if (!led.is_undo) _append_action(ACTION_INSERT, ch);
-    memmove(led.text+led.cur.cur+1, led.text+led.cur.cur, led.text_sz-led.cur.cur);
-    led.text[led.cur.cur] = ch;
-    _count_lines();
-    move_right();
+    insert_text(&ch, 1);
 }
 
 void indent(void) {
@@ -576,9 +570,9 @@ void paste_text(void) {
     fseek(file, 0, SEEK_END);
     buf = malloc((sz = ftell(file)) * sizeof(char));
     fseek(file, 0, SEEK_SET);
-    if (fread(buf, sz, sizeof(char), file));
+    if (fread(buf, sizeof(char), sz, file));
     fclose(file);
-    insert_text(buf, sz);
+    insert_text((int*)buf, sz);
     free(buf);
 }
 

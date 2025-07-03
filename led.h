@@ -72,7 +72,7 @@ void page_up(void);
 void page_down(void);
 void move_next_word(void);
 void move_prev_word(void);
-void insert_text(char *buf, int sz);
+void insert_text(int *buf, int sz);
 void insert_char(int ch);
 void remove_char(bool backspace);
 void remove_next_word(void);
