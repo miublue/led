@@ -125,14 +125,14 @@ static inline void _undo_insert(action_t *act) {
 }
 
 static inline void _undo_delete(action_t *act) {
-    insert_text((int*)act->text, act->text_sz);
+    insert_text(act->text, act->text_sz);
 }
 
 static inline void _undo_backspace(action_t *act) {
     char text[act->text_sz+1];
     for (int i = 0; i < act->text_sz; ++i)
         text[(act->text_sz-1)-i] = act->text[i];
-    insert_text((int*)text, act->text_sz);
+    insert_text(text, act->text_sz);
 }
 
 static inline void _undo_upper_or_lower(action_t *act, int type) {
@@ -415,12 +415,13 @@ void move_prev_word(void) {
 }
 
 // XXX: UTF-8 lmao
-void insert_text(int *buf, int sz) {
+void insert_text(char *buf, int sz) {
     if (led.readonly) return;
-    if ((led.text_sz += sz) >= led.text_alloc)
+    if (led.text_sz+sz >= led.text_alloc)
         led.text = realloc(led.text, sizeof(char) * (led.text_alloc += sz+ALLOC_SIZE));
     memmove(led.text+led.cur.cur+sz, led.text+led.cur.cur, led.text_sz-led.cur.cur);
     memmove(led.text+led.cur.cur, buf, sz);
+    led.text_sz += sz;
     _count_lines();
     for (int i = 0; i < sz; ++i) {
         if (!led.is_undo) _append_action(ACTION_INSERT, buf[i]);
@@ -428,7 +429,7 @@ void insert_text(int *buf, int sz) {
     }
 }
 
-void insert_char(int ch) {
+void insert_char(char ch) {
     insert_text(&ch, 1);
 }
 
@@ -572,7 +573,7 @@ void paste_text(void) {
     fseek(file, 0, SEEK_SET);
     if (fread(buf, sizeof(char), sz, file));
     fclose(file);
-    insert_text((int*)buf, sz);
+    insert_text(buf, sz);
     free(buf);
 }
 
