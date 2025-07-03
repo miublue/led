@@ -14,7 +14,6 @@ static struct { char *name; cfg_callback_t callback; } _config_commands[] = {
     { "load",   command_load },
     { "save",   command_save },
     { "quit",   command_quit },
-    { "syntax", command_syntax },
 };
 
 static struct { char *key; cfg_value_t val; } _config_values[NUM_CONFIG_VALUES] = {
@@ -99,7 +98,6 @@ void cfg_parse(char *text, int sz) {
         for (int i = 0; i < LENGTH(_config_commands); ++i) {
             if (cfg_compare_tok(tok, _config_commands[i].name)) {
                 _config_commands[i].callback();
-                parse_tokens();
                 break;
             }
         }

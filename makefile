@@ -1,11 +1,6 @@
 CC = tcc
-USECOLOR ?= 1
 USEMTM ?= 1
 CFLAGS ?=
-
-ifdef USECOLOR
-	CFLAGS += -D_USE_COLOR
-endif
 
 ifdef USEMTM
 	CFLAGS += -D_USE_MTM

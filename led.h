@@ -8,33 +8,6 @@
 #define CTRL(c) ((c) & 0x1f)
 #define ALLOC_SIZE 512
 
-#ifndef _USE_COLOR
-#define _USE_COLOR 0
-#endif
-// XXX: make colors (and, perhaps, syntax highlighting) customizable at runtime
-#if _USE_COLOR
-#define COLOR_STATUS     COLOR_RED
-#define COLOR_IDENTIFIER COLOR_WHITE
-#define COLOR_KEYWORD    COLOR_YELLOW
-#define COLOR_OPERATOR   COLOR_YELLOW
-#define COLOR_LITERAL    COLOR_GREEN
-#define COLOR_COMMENT    COLOR_CYAN
-
-#define ATTR_STATUS     A_BOLD
-#define ATTR_IDENTIFIER 0
-#define ATTR_KEYWORD    0
-#define ATTR_OPERATOR   0
-#define ATTR_LITERAL    0
-#define ATTR_COMMENT    A_ITALIC
-#else
-#define ATTR_STATUS     A_BOLD
-#define ATTR_IDENTIFIER 0
-#define ATTR_KEYWORD    A_DIM|A_BOLD
-#define ATTR_OPERATOR   A_DIM
-#define ATTR_LITERAL    A_DIM
-#define ATTR_COMMENT    A_DIM|A_ITALIC
-#endif
-
 enum { PAIR_NORMAL = 0, PAIR_STATUS, PAIR_LITERAL, PAIR_KEYWORD, PAIR_OPERATOR, PAIR_COMMENT };
 
 typedef struct line_t selection_t;
@@ -93,7 +66,5 @@ void word_to_upper(void);
 void find_string(char *to_find);
 void replace_string(char *to_replace, char *str);
 void goto_line(long line);
-void parse_tokens(void);
-void load_syntax(char *name);
 
 #endif

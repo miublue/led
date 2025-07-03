@@ -7,181 +7,18 @@
 #include "led.h"
 #include "config.h"
 #include "callbacks.h"
-#include "parser.h"
 
 // ABANDON ALL HOPE, YE WHO ENTER HERE
 
 static struct {
     size_t text_sz, text_alloc;
     size_t lines_sz, lines_alloc;
-    size_t tokens_sz, tokens_alloc;
-    size_t action, actions_sz, actions_alloc;
     int mode, readonly, ww, wh;
     cursor_t cur;
-    bool is_undo;
     char *text, *file;
     line_t *lines;
-    action_t *actions;
-    syntax_t *syntax;
-    token_t *tokens;
     inputbox_t input, input_find;
 } led;
-
-// XXX: adding new config options and languages is a pain in the ass
-#include "syntax/makefile.h"
-#include "syntax/markdown.h"
-#include "syntax/asm.h"
-#include "syntax/c.h"
-#include "syntax/d.h"
-#include "syntax/sh.h"
-#include "syntax/python.h"
-#include "syntax/lua.h"
-#include "syntax/ledrc.h"
-#include "syntax/nim.h"
-#include "syntax/sml.h"
-#include "syntax/lisp.h"
-#include "syntax/scheme.h"
-#include "syntax/go.h"
-#include "syntax/rust.h"
-#include "syntax/zig.h"
-
-static syntax_t syntaxes[512] = {0};
-static int num_syntaxes = 0;
-
-static inline void _init_syntaxes(void) {
-    num_syntaxes = 0;
-    syntaxes[num_syntaxes++] = syntax_makefile();
-    syntaxes[num_syntaxes++] = syntax_markdown();
-    syntaxes[num_syntaxes++] = syntax_asm();
-    syntaxes[num_syntaxes++] = syntax_c();
-    syntaxes[num_syntaxes++] = syntax_d();
-    syntaxes[num_syntaxes++] = syntax_sh();
-    syntaxes[num_syntaxes++] = syntax_python();
-    syntaxes[num_syntaxes++] = syntax_lua();
-    syntaxes[num_syntaxes++] = syntax_ledrc();
-    syntaxes[num_syntaxes++] = syntax_nim();
-    syntaxes[num_syntaxes++] = syntax_sml();
-    syntaxes[num_syntaxes++] = syntax_lisp();
-    syntaxes[num_syntaxes++] = syntax_scheme();
-    syntaxes[num_syntaxes++] = syntax_go();
-    syntaxes[num_syntaxes++] = syntax_rust();
-    syntaxes[num_syntaxes++] = syntax_zig();
-}
-
-// XXX: occasional segfaults when inserting text after undo/paste
-static void _actions_append(action_t act) {
-    if (led.action+1 < led.actions_sz) {
-        for (int i = led.action+1; i < led.actions_sz; ++i) {
-            if (led.actions[i].text_alloc) free(led.actions[i].text);
-            memset(&led.actions[i], 0, sizeof(action_t));
-        }
-        led.actions_sz = led.action+1;
-    }
-    if (++led.actions_sz >= led.actions_alloc)
-        led.actions = realloc(led.actions, sizeof(action_t) * (led.actions_alloc += ALLOC_SIZE));
-    led.actions[led.action = led.actions_sz-1] = act;
-}
-
-static void _free_actions(void) {
-    for (int i = 0; i < led.actions_sz; ++i) {
-        if (led.actions[i].text_alloc) free(led.actions[i].text);
-    }
-    if (led.actions) free(led.actions);
-}
-
-static void _insert_to_action(action_t *act, char c) {
-    if (act->text_sz >= act->text_alloc)
-        act->text = realloc(act->text, sizeof(char) * (act->text_alloc += ALLOC_SIZE));
-    act->text[act->text_sz++] = c;
-}
-
-static bool _is_action_repeat(int type, action_t *act) {
-    switch (type) {
-    case ACTION_DELETE: return led.cur.cur == act->cur.cur;
-    case ACTION_BACKSPACE: return led.cur.cur == act->cur.cur-1;
-    default: return led.cur.cur == act->cur.cur + act->text_sz;
-    }
-}
-
-// XXX: appending to action character by character is also kinda slow
-static void _append_action(int type, char c) {
-    if (led.action != -1 && led.actions[led.action].type == type) {
-        action_t *act = &led.actions[led.action];
-        bool repeat = _is_action_repeat(type, act);
-        if (repeat && type == ACTION_BACKSPACE) act->cur = led.cur;
-        if (repeat) return _insert_to_action(act, c);
-    }
-    action_t act = { .type = type, .cur = led.cur };
-    act.text = malloc(sizeof(char) * (act.text_alloc = ALLOC_SIZE));
-    act.text_sz = 0;
-    _insert_to_action(&act, c);
-    _actions_append(act);
-}
-
-static inline void _undo_insert(action_t *act) {
-    led.cur.sel = (led.cur.cur+act->text_sz)-1;
-    if (led.cur.sel == led.cur.cur) remove_char(FALSE);
-    else remove_selection();
-}
-
-static inline void _undo_delete(action_t *act) {
-    insert_text((int*)act->text, act->text_sz);
-}
-
-static inline void _undo_backspace(action_t *act) {
-    char text[act->text_sz+1];
-    for (int i = 0; i < act->text_sz; ++i)
-        text[(act->text_sz-1)-i] = act->text[i];
-    insert_text((int*)text, act->text_sz);
-}
-
-static inline void _undo_upper_or_lower(action_t *act, int type) {
-    for (int i = 0; i < act->text_sz; ++i) {
-        if (type == ACTION_TOUPPER) led.text[led.cur.cur+i] = tolower(led.text[led.cur.cur+i]);
-        else led.text[led.cur.cur+i] = toupper(led.text[led.cur.cur+i]);
-    }
-}
-
-void undo_action(void) {
-    if (led.action == -1 || led.readonly) return;
-    action_t *act = &led.actions[led.action--];
-    led.cur = act->cur;
-    led.is_undo = TRUE;
-    switch (act->type) {
-    case ACTION_INSERT: _undo_insert(act); break;
-    case ACTION_DELETE: _undo_delete(act); break;
-    case ACTION_BACKSPACE: _undo_backspace(act); break;
-    case ACTION_TOUPPER: case ACTION_TOLOWER:
-        _undo_upper_or_lower(act, act->type); break;
-    default: break;
-    }
-    led.is_undo = FALSE;
-    parse_tokens();
-}
-
-void redo_action(void) {
-    if (led.action+1 == led.actions_sz || led.readonly) return;
-    action_t *act = &led.actions[++led.action];
-    led.cur = act->cur;
-    led.is_undo = TRUE;
-    switch (act->type) {
-    case ACTION_INSERT: _undo_delete(act); break;
-    case ACTION_DELETE: _undo_insert(act); break;
-    case ACTION_BACKSPACE: _undo_insert(act); break;
-    case ACTION_TOUPPER: case ACTION_TOLOWER:
-        _undo_upper_or_lower(act, act->type == ACTION_TOUPPER? ACTION_TOLOWER : ACTION_TOUPPER);
-        break;
-    default: break;
-    }
-    led.is_undo = FALSE;
-    parse_tokens();
-}
-
-static void _append_token(token_t token) {
-    if (++led.tokens_sz >= led.tokens_alloc)
-        led.tokens = realloc(led.tokens, sizeof(token_t) * (led.tokens_alloc += ALLOC_SIZE));
-    led.tokens[led.tokens_sz-1] = token;
-}
 
 static void _append_line(line_t line) {
     if (++led.lines_sz >= led.lines_alloc)
@@ -189,42 +26,8 @@ static void _append_line(line_t line) {
     led.lines[led.lines_sz-1] = line;
 }
 
-void parse_tokens(void) {
-    led.tokens_sz = 0;
-    if (!led.syntax || !cfg_get_value_idx(CFG_HIGHLIGHT)->as_bool) return;
-    token_t tok = {0};
-    lexer_t lex = { .cur = 0, .text_sz = led.text_sz, .text = led.text };
-    do {
-        tok = led.syntax->next_token(led.syntax, &lex);
-        _append_token(tok);
-    } while (tok.type != LTK_EOF && lex.cur < led.text_sz);
-}
-
-void load_syntax(char *name) {
-    if (name) {
-        for (int i = 0; i < num_syntaxes; ++i) {
-            if (!strcasecmp(name, syntaxes[i].name)) {
-                led.syntax = &syntaxes[i];
-                return;
-            }
-        }
-    } else {
-        for (int i = 0; i < num_syntaxes; ++i) {
-            for (int j = 0; syntaxes[i].extensions[j]; ++j) {
-                const char *ext = syntaxes[i].extensions[j];
-                const int file_sz = strlen(led.file), ext_sz = strlen(ext);
-                if (ext_sz <= file_sz && !strncmp(ext, led.file+file_sz-ext_sz, ext_sz)) {
-                    led.syntax = &syntaxes[i];
-                    return;
-                }
-            }
-        }
-    }
-}
-
 static void _count_lines(void) {
     size_t line_start = led.lines_sz = 0;
-    parse_tokens();
     for (int i = 0; i < led.text_sz; ++i) {
         if (led.text[i] == '\n') {
             _append_line((line_t) { line_start, i });
@@ -244,16 +47,6 @@ static void _init_curses(void) {
     noecho();
     curs_set(0);
     keypad(stdscr, TRUE);
-#if _USE_COLOR
-    use_default_colors();
-    start_color();
-    init_pair(PAIR_NORMAL, -1, -1);
-    init_pair(PAIR_STATUS,   COLOR_STATUS,   -1);
-    init_pair(PAIR_LITERAL,  COLOR_LITERAL,  -1);
-    init_pair(PAIR_KEYWORD,  COLOR_KEYWORD,  -1);
-    init_pair(PAIR_OPERATOR, COLOR_OPERATOR, -1);
-    init_pair(PAIR_COMMENT,  COLOR_COMMENT,  -1);
-#endif
 }
 
 static void _quit_curses(void) {
@@ -262,14 +55,9 @@ static void _quit_curses(void) {
 }
 
 void exit_program(void) {
-    // XXX: i'm getting double-free corruption, my solution is to leave it to the OS
-/*
     if (led.file) free(led.file);
     if (led.text) free(led.text);
     if (led.lines) free(led.lines);
-    if (led.tokens) free(led.tokens);
-    if (led.actions) _free_actions();
-*/
     _quit_curses();
     exit(0);
 }
@@ -284,18 +72,12 @@ void open_file(char *path) {
     if (led.file) free(led.file);
     if (led.text) free(led.text);
     if (led.lines) free(led.lines);
-    if (led.tokens) free(led.tokens);
-    if (led.actions) _free_actions();
     led.text = NULL;
-    led.syntax = NULL;
     led.lines = malloc(sizeof(line_t) * (led.lines_alloc = ALLOC_SIZE));
-    led.tokens = malloc(sizeof(token_t) * (led.tokens_alloc = ALLOC_SIZE));
-    led.actions = malloc(sizeof(action_t) * (led.actions_alloc = ALLOC_SIZE));
-    led.text_sz = led.lines_sz = led.actions_sz = led.tokens_sz = 0;
+    led.text_sz = led.lines_sz = 0;
     led.cur = (cursor_t) {0};
     led.mode = MODE_NONE;
-    led.is_undo = led.readonly = FALSE;
-    led.action = -1;
+    led.readonly = FALSE;
     input_reset(&led.input);
     led.file = path;
 
@@ -313,8 +95,6 @@ void open_file(char *path) {
     if (!led.text) goto open_file_fail;
     if (fread(led.text, 1, led.text_sz, file) != led.text_sz) goto open_file_fail;
 
-    _init_syntaxes();
-    load_syntax(NULL);
     _count_lines();
     fclose(file);
     _load_config_file();
@@ -417,13 +197,13 @@ void move_prev_word(void) {
 // XXX: UTF-8 lmao
 void insert_text(int *buf, int sz) {
     if (led.readonly) return;
-    if ((led.text_sz += sz) >= led.text_alloc)
+    if (led.text_sz+sz >= led.text_alloc)
         led.text = realloc(led.text, sizeof(char) * (led.text_alloc += sz+ALLOC_SIZE));
     memmove(led.text+led.cur.cur+sz, led.text+led.cur.cur, led.text_sz-led.cur.cur);
     memmove(led.text+led.cur.cur, buf, sz);
+    led.text_sz += sz;
     _count_lines();
     for (int i = 0; i < sz; ++i) {
-        if (!led.is_undo) _append_action(ACTION_INSERT, buf[i]);
         move_right();
     }
 }
@@ -436,7 +216,7 @@ void indent(void) {
     if (led.readonly) return;
     int cur = led.cur.cur, add = 1;
     led.cur.cur = led.lines[led.cur.line].start;
-    if (!cfg_get_value_idx(CFG_EXPAND_TAB)->as_bool || (led.syntax && !strcasecmp(led.syntax->name, "makefile"))) {
+    if (!cfg_get_value_idx(CFG_EXPAND_TAB)->as_bool || !strcasecmp(led.file, "makefile")) {
         insert_char('\t');
     } else {
         for (add = 0; add < cfg_get_value_idx(CFG_TAB_WIDTH)->as_int; ++add)
@@ -466,7 +246,6 @@ void remove_char(bool backspace) {
     if (led.readonly) return;
     if (backspace) move_left();
     if (led.text_sz == 0 || led.cur.cur >= led.text_sz-1) return;
-    if (!led.is_undo) _append_action(backspace? ACTION_BACKSPACE : ACTION_DELETE, led.text[led.cur.cur]);
     memmove(led.text+led.cur.cur, led.text+led.cur.cur+1, led.text_sz-led.cur.cur);
     --led.text_sz;
     _count_lines();
@@ -532,10 +311,6 @@ void remove_selection(void) {
     _goto_start_of_selection();
     // make sure it doesn't try to delete text out of bounds
     if (sel.end >= led.text_sz-1) sel.end = led.text_sz-2;
-    if (!led.is_undo) {
-        for (int i = sel.start; i <= sel.end; ++i)
-            _append_action(ACTION_DELETE, led.text[i]);
-    }
     memmove(led.text+sel.start, led.text+sel.end+1, led.text_sz-sel.end);
     led.text_sz -= (sel.end-sel.start)+1;
     _count_lines();
@@ -576,7 +351,6 @@ void paste_text(void) {
     free(buf);
 }
 
-// XXX: to_lower and to_upper are wonky with undo/redo
 void word_to_lower(void) {
     if (led.readonly) return;
     if (!is_selecting()) { move_next_word(); move_right(); }
@@ -585,11 +359,9 @@ void word_to_lower(void) {
     for (led.cur.cur = sel.start; led.cur.cur < sel.end; move_right()) {
         char *c = &led.text[led.cur.cur];
         if (!islower(*c) && isalpha(*c)) {
-            if (!led.is_undo) _append_action(ACTION_TOLOWER, *c);
             *c = tolower(*c);
         }
     }
-    parse_tokens();
 }
 
 void word_to_upper(void) {
@@ -600,11 +372,9 @@ void word_to_upper(void) {
     for (led.cur.cur = sel.start; led.cur.cur < sel.end; move_right()) {
         char *c = &led.text[led.cur.cur];
         if (!isupper(*c) && isalpha(*c)) {
-            if (!led.is_undo) _append_action(ACTION_TOUPPER, *c);
             *c = toupper(*c);
         }
     }
-    parse_tokens();
 }
 
 static inline selection_t _get_selection_line_range(void) {
@@ -641,52 +411,13 @@ static inline bool _is_selected(int i) {
     return (is_selecting() && i >= sel.start && i <= sel.end);
 }
 
-static int _last_token = 0;
-static inline int _get_token_within(int pos) {
-    // XXX: this is slow as fuck
-    for (int i = _last_token; i < led.tokens_sz; ++i) {
-        if (pos >= led.tokens[i].start && pos < led.tokens[i].end) {
-            _last_token = i;
-            return i;
-        }
-    }
-    return -1;
-}
-
-static int _token_type_to_attr[] = {
-    [LTK_IDENTIFIER] = ATTR_IDENTIFIER,
-    [LTK_LITERAL]    = ATTR_LITERAL,
-    [LTK_KEYWORD]    = ATTR_KEYWORD,
-    [LTK_OPERATOR]   = ATTR_OPERATOR,
-    [LTK_COMMENT]    = ATTR_COMMENT,
-};
-
-#if _USE_COLOR
-static int _token_type_to_color[] = {
-    [LTK_IDENTIFIER] = COLOR_PAIR(PAIR_NORMAL),
-    [LTK_LITERAL]    = COLOR_PAIR(PAIR_LITERAL),
-    [LTK_KEYWORD]    = COLOR_PAIR(PAIR_KEYWORD),
-    [LTK_OPERATOR]   = COLOR_PAIR(PAIR_OPERATOR),
-    [LTK_COMMENT]    = COLOR_PAIR(PAIR_COMMENT),
-};
-#endif
-
 static void _render_line(int l, int off) {
     line_t line = led.lines[l];
     int sz = off;
     const int tab_width = cfg_get_value_idx(CFG_TAB_WIDTH)->as_int;
-    token_t *tok = NULL;
-    // XXX: this is slow as fuck
     for (int i = line.start; i <= line.end; ++i) {
         int attr = 0;
-        const int tok_idx = _get_token_within(i);
-        tok = (tok_idx == -1)? NULL : &led.tokens[tok_idx];
-#if _USE_COLOR
-        if (tok) attr = _token_type_to_attr[tok->type]|_token_type_to_color[tok->type];
-#else
-        if (tok) attr = _token_type_to_attr[tok->type];
-#endif
-        if (led.cur.cur == i || _is_selected(i)) attr = A_REVERSE | ((tok)? _token_type_to_attr[tok->type] : 0);
+        if (led.cur.cur == i || _is_selected(i)) attr = A_REVERSE;
         attron(attr);
         mvprintw(l-led.cur.off, sz, "%c", isspace(led.text[i])? ' ':led.text[i]);
         if (led.text[i] == '\t') {
@@ -711,7 +442,6 @@ static inline int _calculate_line_size(void) {
 
 static void _render_text(void) {
     erase();
-    _last_token = 0;
     int cur_off = _calculate_line_size(), off = 0;
     while (led.cur.line-led.cur.off < 0) { move_down(); led.cur.sel = led.cur.cur; }
     while (led.cur.line-led.cur.off >= led.wh-1) { move_up(); led.cur.sel = led.cur.cur; }
@@ -749,19 +479,12 @@ static void _render_status(void) {
         led.cur.cur-led.lines[led.cur.line].start+1,
         led.cur.line+1, led.lines_sz, led.file);
     const size_t status_sz = strlen(status);
-#if _USE_COLOR
-    const int attr = ATTR_STATUS|COLOR_PAIR(COLOR_STATUS);
-#else
-    const int attr = ATTR_STATUS;
-#endif
-    attron(attr);
     mvprintw(led.wh-1, led.ww-status_sz, "%s", status);
     if (led.mode != MODE_NONE) {
         char *astr = _mode_to_cstr();
         mvprintw(led.wh-1, 0, "%s", astr);
         input_render(&led.input, strlen(astr), led.wh-1, led.ww-status_sz-strlen(astr));
     }
-    attroff(attr);
 }
 
 static void _find_next(inputbox_t input) {
@@ -920,10 +643,6 @@ static void _update_insert(int ch) {
     case CTRL('n'):
         if (led.input.text_sz) _find_next(led.input);
         return;
-    case CTRL('z'):
-        undo_action(); break;
-    case CTRL('y'):
-        redo_action(); break;
     case CTRL('u'):
         word_to_upper(); break;
     case CTRL('l'):
