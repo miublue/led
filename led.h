@@ -21,6 +21,13 @@ typedef struct cursor_t {
 
 enum { MODE_NONE, MODE_FIND, MODE_GOTO, MODE_OPEN, MODE_REPLACE, MODE_COMMAND };
 
+typedef struct {
+    enum { ACTION_INSERT, ACTION_DELETE, ACTION_BACKSPACE, ACTION_TOUPPER, ACTION_TOLOWER } type;
+    cursor_t cur;
+    int text_sz, text_alloc;
+    char *text;
+} action_t;
+
 void open_file(char *path);
 void write_file(char *path);
 void exit_program(void);
@@ -36,8 +43,8 @@ void page_up(void);
 void page_down(void);
 void move_next_word(void);
 void move_prev_word(void);
-void insert_text(int *buf, int sz);
-void insert_char(int ch);
+void insert_text(char *buf, int sz);
+void insert_char(char ch);
 void remove_char(bool backspace);
 void remove_next_word(void);
 void remove_prev_word(void);
