@@ -8,8 +8,6 @@
 #define CTRL(c) ((c) & 0x1f)
 #define ALLOC_SIZE 512
 
-enum { PAIR_NORMAL = 0, PAIR_STATUS, PAIR_LITERAL, PAIR_KEYWORD, PAIR_OPERATOR, PAIR_COMMENT };
-
 typedef struct line_t selection_t;
 typedef struct line_t {
     uint32_t start, end;
