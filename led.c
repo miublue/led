@@ -353,27 +353,23 @@ void paste_text(void) {
 
 void word_to_lower(void) {
     if (led.readonly) return;
-    if (!is_selecting()) { move_next_word(); move_right(); }
+    if (!is_selecting()) move_next_word();
     selection_t sel = get_selection();
     _goto_start_of_selection();
-    for (led.cur.cur = sel.start; led.cur.cur < sel.end; move_right()) {
+    for (led.cur.cur = sel.start; led.cur.cur <= sel.end; move_right()) {
         char *c = &led.text[led.cur.cur];
-        if (!islower(*c) && isalpha(*c)) {
-            *c = tolower(*c);
-        }
+        if (isupper(*c)) *c = tolower(*c);
     }
 }
 
 void word_to_upper(void) {
     if (led.readonly) return;
-    if (!is_selecting()) { move_next_word(); move_right(); }
+    if (!is_selecting()) move_next_word();
     selection_t sel = get_selection();
     _goto_start_of_selection();
-    for (led.cur.cur = sel.start; led.cur.cur < sel.end; move_right()) {
+    for (led.cur.cur = sel.start; led.cur.cur <= sel.end; move_right()) {
         char *c = &led.text[led.cur.cur];
-        if (!isupper(*c) && isalpha(*c)) {
-            *c = toupper(*c);
-        }
+        if (islower(*c)) *c = toupper(*c);
     }
 }
 
