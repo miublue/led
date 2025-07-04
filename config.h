@@ -7,7 +7,6 @@ enum {
     CFG_TAB_WIDTH,
     CFG_EXPAND_TAB,
     CFG_LINE_NUMBER,
-    CFG_HIGHLIGHT,
     NUM_CONFIG_VALUES,
 };
 

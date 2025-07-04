@@ -4,6 +4,4 @@ set expandtab true
 set tabwidth 4
 # don't show line numbers
 set linenumber false
-# enable syntax highlighting
-set highlight true
 
