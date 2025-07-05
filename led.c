@@ -561,6 +561,8 @@ void copy_selection(void) {
 }
 
 void paste_text(void) {
+    if (led.readonly) return;
+    if (is_selecting()) remove_selection();
     // a bit roundabout, but probably still faster than pasting
     // from terminal and inserting the text character by character
     if (system("xsel -bo > /tmp/ledsel"));
