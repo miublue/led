@@ -39,11 +39,14 @@ static struct {
 #include "syntax/ledrc.h"
 #include "syntax/nim.h"
 #include "syntax/sml.h"
+#include "syntax/haskell.h"
 #include "syntax/lisp.h"
 #include "syntax/scheme.h"
 #include "syntax/go.h"
 #include "syntax/rust.h"
 #include "syntax/zig.h"
+#include "syntax/fortran.h"
+#include "syntax/b.h"
 
 static syntax_t syntaxes[512] = {0};
 static int num_syntaxes = 0;
@@ -61,11 +64,14 @@ static inline void _init_syntaxes(void) {
     syntaxes[num_syntaxes++] = syntax_ledrc();
     syntaxes[num_syntaxes++] = syntax_nim();
     syntaxes[num_syntaxes++] = syntax_sml();
+    syntaxes[num_syntaxes++] = syntax_haskell();
     syntaxes[num_syntaxes++] = syntax_lisp();
     syntaxes[num_syntaxes++] = syntax_scheme();
     syntaxes[num_syntaxes++] = syntax_go();
     syntaxes[num_syntaxes++] = syntax_rust();
     syntaxes[num_syntaxes++] = syntax_zig();
+    syntaxes[num_syntaxes++] = syntax_fortran();
+    syntaxes[num_syntaxes++] = syntax_b();
 }
 
 // XXX: occasional segfaults when inserting text after undo/paste
