@@ -3,8 +3,8 @@
 
 #include "parser.h"
 
-/* XXX: newer fortran versions */
-static const char *_FORTRAN_EXTENSIONS[] = {".f77", ".f90", ".f95", NULL};
+/* XXX: keywords that are actually multiple words (???? i hate fortran) */
+static const char *_FORTRAN_EXTENSIONS[] = {".f", ".for", ".ftn", ".f77", ".f90", ".f95", ".f03", ".f08", NULL};
 static const char *_FORTRAN_KEYWORDS[] = {
     // FORTRAN 77
     "assign", "backspace", "block", "call", "close", "common", "continue", "data",
@@ -19,8 +19,17 @@ static const char *_FORTRAN_KEYWORDS[] = {
     "sequence", "target", "use", "while", "where",
     // FORTRAN 95
     "elemental", "forall", "pure",
-    // couldn't find a list for those
+    // FORTRAN 03
+    "abstract", "associate", "asynchronous", "bind", "class", "deferred", "enum", "enumerator",
+    "extends", "final", "flush", "generic", "import", "non_overridable", "nopass",
+    "pass", "protected", "value", "volatile", "wait",
+    // FORTRAN 08
+    "block", "codimension", "concurrent", "contiguous", "critical", "error", "submodule",
+    "sync", "all", "images", "memory", "lock", "unlock", "impure",
+    // "sync all", "sync images", "sync memory", weaeweawewaewaea
+    // TYPES
     "type", "structure", "record", "character", "integer", "real", "complex", "logical",
+    "byte", "double",
     NULL
 };
 
