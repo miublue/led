@@ -115,6 +115,7 @@ next:
                 _sh_skip_bracket(syntax, lex, &tok);
                 return tok;
             }
+            LEX_INC(1);
             while (syntax->is_word(syntax, lex->text[lex->cur]) && lex->cur < lex->text_sz) LEX_INC(1);
             return tok;
         }
