@@ -22,6 +22,7 @@ static struct { char *key; cfg_value_t val; } _config_values[NUM_CONFIG_VALUES] 
     [CFG_EXPAND_TAB]   = { "expandtab",  CVAL_BOOL(true) },
     [CFG_LINE_NUMBER]  = { "linenumber", CVAL_BOOL(false) },
     [CFG_HIGHLIGHT]    = { "highlight",  CVAL_BOOL(true) },
+    [CFG_IGNORE_CASE]  = { "ignorecase", CVAL_BOOL(false) },
 };
 
 static struct { char *text; int sz, cur; } cfg;

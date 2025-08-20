@@ -8,6 +8,7 @@ enum {
     CFG_EXPAND_TAB,
     CFG_LINE_NUMBER,
     CFG_HIGHLIGHT,
+    CFG_IGNORE_CASE,
     NUM_CONFIG_VALUES,
 };
 

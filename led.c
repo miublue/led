@@ -47,6 +47,9 @@ static struct {
 #include "syntax/zig.h"
 #include "syntax/fortran.h"
 #include "syntax/b.h"
+#include "syntax/bcpl.h"
+#include "syntax/n.h"
+// ... this is getting unhinged
 
 static syntax_t syntaxes[512] = {0};
 static int num_syntaxes = 0;
@@ -72,6 +75,8 @@ static inline void _init_syntaxes(void) {
     syntaxes[num_syntaxes++] = syntax_zig();
     syntaxes[num_syntaxes++] = syntax_fortran();
     syntaxes[num_syntaxes++] = syntax_b();
+    syntaxes[num_syntaxes++] = syntax_bcpl();
+    syntaxes[num_syntaxes++] = syntax_n();
 }
 
 // XXX: occasional segfaults when inserting text after undo/paste
@@ -219,7 +224,7 @@ void load_syntax(char *name) {
             for (int j = 0; syntaxes[i].extensions[j]; ++j) {
                 const char *ext = syntaxes[i].extensions[j];
                 const int file_sz = strlen(led.file), ext_sz = strlen(ext);
-                if (ext_sz <= file_sz && !strncmp(ext, led.file+file_sz-ext_sz, ext_sz)) {
+                if (ext_sz <= file_sz && !strncasecmp(ext, led.file+file_sz-ext_sz, ext_sz)) {
                     led.syntax = &syntaxes[i];
                     return;
                 }
@@ -492,11 +497,23 @@ void remove_next_word(void) {
     remove_selection();
 }
 
+static char *_casestrstr(const char *haystack, const char *needle) {
+    if (cfg_get_value_idx(CFG_IGNORE_CASE)->as_int)
+        return strcasestr(haystack, needle);
+    return strstr(haystack, needle);
+}
+
+static int _casestrcmp(const char *s1, const char *s2, size_t n) {
+    if (cfg_get_value_idx(CFG_IGNORE_CASE)->as_int)
+        return strncasecmp(s1, s2, n);
+    return strncmp(s1, s2, n);
+}
+
 void find_string(char *to_find) {
     char *str = NULL;
-    if ((str = strstr(led.text+led.cur.cur+1, to_find))) {
+    if ((str = _casestrstr(led.text+led.cur.cur+1, to_find))) {
         while (led.text+led.cur.cur != str) move_right();
-    } else if ((str = strstr(led.text, to_find))) {
+    } else if ((str = _casestrstr(led.text, to_find))) {
         led.cur = (cursor_t) {0};
         while (led.text+led.cur.cur != str) move_right();
     } else return;
@@ -504,10 +521,11 @@ void find_string(char *to_find) {
     led.cur.cur += strlen(to_find)-1;
 }
 
+// XXX: occasional freezes after spamming replace
 void replace_string(char *to_replace, char *str) {
     int m = MIN(led.cur.cur, led.cur.sel);
     int rep_sz = strlen(to_replace);
-    if (!strncmp(led.text+m, to_replace, rep_sz)) {
+    if (!_casestrcmp(led.text+m, to_replace, rep_sz)) {
         led.cur.cur = m;
         for (int i = 0; i < rep_sz; ++i)
             remove_char(FALSE);
@@ -893,6 +911,7 @@ static void _update_insert(int ch) {
     } break;
 #endif
 
+    case KEY_RESIZE: break;
     case CTRL('q'):
         exit_program();
         break;

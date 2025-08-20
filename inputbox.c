@@ -53,6 +53,7 @@ static inline void _input_remove_prev_word(inputbox_t *ib) {
 
 void input_update(inputbox_t *ib, int key) {
     switch (key) {
+    case KEY_RESIZE: break;
 #ifdef _USE_MTM /* since i sometimes use the mtm terminal multiplexer */
     case 200: {
         switch (getch()) {

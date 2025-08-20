@@ -6,4 +6,6 @@ set tabwidth 4
 set linenumber false
 # enable syntax highlighting
 set highlight true
+# enable case insensitive search
+set ignorecase true
 
