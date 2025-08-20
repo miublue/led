@@ -17,3 +17,6 @@ all:
 install: all
 	install led /usr/local/bin
 
+uninstall:
+	rm /usr/local/bin/led
+
