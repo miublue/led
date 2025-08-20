@@ -9,7 +9,13 @@ static const char *_GO_KEYWORDS[] = {
     "case", "defer", "go", "map", "struct", "chan",
     "else", "goto", "package", "switch", "const",
     "fallthrough", "if", "range", "type", "continue",
-    "for", "import", "return", "var", NULL
+    "for", "import", "return", "var",
+    // TYPES
+    "bool", "string", "rune", "byte", "uintptr",
+    "uint", "uint8", "uint16", "uint32", "uint64",
+    "int", "int8", "int16", "int32" "int64",
+    "float32", "float64", "complex64", "complex128",
+    NULL
 };
 
 #define LEX_INC(AMOUNT) { tok.end += AMOUNT; lex->cur += AMOUNT; }

@@ -12,7 +12,7 @@ static const char *_PY_KEYWORDS[] = {
     "try", "except", "finally", "raise", "assert", "def", "return",
     "lambda", "yield", "class", "import", "from", "in", "as", "del",
     "global", "with", "nonlocal", "async", "await", "int", "float",
-    "str", "list", "dict", "object", NULL,
+    "str", "list", "dict", "object", "bool", NULL,
 };
 
 #define LEX_INC(AMOUNT) { tok.end += AMOUNT; lex->cur += AMOUNT; }
