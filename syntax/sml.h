@@ -16,7 +16,7 @@ static const char *_SML_KEYWORDS[] = {
     "case", "ref", "open", "infixr", "infixl", "infix",
     "div", "mod",
 
-    "false", "true", "bool", "int", "float", "list",
+    "false", "true", "bool", "int", "real", "unit", "list",
     "array", "char", "string", "option", "SOME", "NONE",
 
 NULL,
