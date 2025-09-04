@@ -103,9 +103,10 @@ void input_update(inputbox_t *ib, int key) {
 
 void input_render(inputbox_t *ib, int x, int y, int w) {
     char text[INPUTBOX_TEXT_SIZE] = {0};
+    const int cap = MIN(ib->text_sz, w);
     memset(text, ' ', sizeof(text));
-    memcpy(text, ib->text, MIN(ib->text_sz, w));
-    mvprintw(y, x, "%.*s", w, text);
+    memcpy(text, ib->text, cap);
+    mvprintw(y, x, "%.*s", cap, text);
     attron(A_REVERSE);
     mvprintw(y, x+ib->pos, "%c", isprint(ib->text[ib->pos])? ib->text[ib->pos] : ' ');
     attroff(A_REVERSE);

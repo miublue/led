@@ -786,7 +786,7 @@ static void _render_status(void) {
     if (led.mode != MODE_NONE) {
         char *astr = _mode_to_cstr();
         mvprintw(led.wh-1, 0, "%s", astr);
-        input_render(&led.input, strlen(astr), led.wh-1, led.ww-status_sz-strlen(astr));
+        input_render(&led.input, strlen(astr), led.wh-1, led.ww-strlen(astr));
     }
     attroff(attr);
 }
