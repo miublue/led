@@ -95,4 +95,5 @@ syntax_t syntax_zig(void) {
         .skip_space  = default_skip_space,
     };
 }
+
 #endif

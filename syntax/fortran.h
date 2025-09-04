@@ -104,4 +104,5 @@ syntax_t syntax_fortran(void) {
         .skip_space  = default_skip_space,
     };
 }
+
 #endif

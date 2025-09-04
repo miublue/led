@@ -36,4 +36,5 @@ syntax_t syntax_c(void) {
         .skip_space  = default_skip_space,
     };
 }
+
 #endif

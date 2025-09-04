@@ -86,4 +86,5 @@ syntax_t syntax_go(void) {
         .skip_space  = default_skip_space,
     };
 }
+
 #endif

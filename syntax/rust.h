@@ -93,4 +93,5 @@ syntax_t syntax_rust(void) {
         .skip_space  = default_skip_space,
     };
 }
+
 #endif
