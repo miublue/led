@@ -59,7 +59,8 @@ static token_t _fortran_next_token(syntax_t *syntax, lexer_t *lex) {
     if (lex->cur >= lex->text_sz) return tok;
 
     tok.start = tok.end = lex->cur;
-    if (lex->cur < lex->text_sz && lex->text[lex->cur] == '!') {
+    const bool bol = lex->cur == 0 || lex->text[lex->cur-1] == '\n';
+    if (lex->cur < lex->text_sz && ((bol && strchr("Cc*", lex->text[lex->cur])) || lex->text[lex->cur] == '!')) {
         tok.type = LTK_COMMENT;
         while (lex->text[lex->cur] != '\n' && lex->cur < lex->text_sz) LEX_INC(1);
         return tok;
