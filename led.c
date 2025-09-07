@@ -152,6 +152,7 @@ static void _init_curses(void) {
     noecho();
     curs_set(0);
     keypad(stdscr, TRUE);
+    getmaxyx(stdscr, led.wh, led.ww);
 }
 
 static void _quit_curses(void) {
@@ -206,7 +207,6 @@ void open_file(char *path) {
 
     _count_lines();
     fclose(file);
-    _load_config_file();
     return;
 open_file_fail:
     if (file) fclose(file);
@@ -558,8 +558,6 @@ static inline int _calculate_line_size(void) {
 static void _render_text(void) {
     erase();
     int cur_off = _calculate_line_size(), off = 0;
-    while (led.cur.line-led.cur.off < 0) { move_down(); led.cur.sel = led.cur.cur; }
-    while (led.cur.line-led.cur.off >= led.wh-1) { move_up(); led.cur.sel = led.cur.cur; }
     if (cfg_get_value_idx(CFG_LINE_NUMBER)->as_bool) {
         char linenu[16];
         sprintf(linenu, " %ld ", led.lines_sz);
@@ -593,12 +591,11 @@ static void _render_status(void) {
         led.readonly? "[RO]" : "",
         led.cur.cur-led.lines[led.cur.line].start+1,
         led.cur.line+1, led.lines_sz, led.file);
-    const size_t status_sz = strlen(status);
-    mvprintw(led.wh-1, led.ww-status_sz, "%s", status);
+    mvprintw(led.wh-1, led.ww-strlen(status), "%s", status);
     if (led.mode != MODE_NONE) {
         char *astr = _mode_to_cstr();
         mvprintw(led.wh-1, 0, "%s", astr);
-        input_render(&led.input, strlen(astr), led.wh-1, led.ww-status_sz-strlen(astr));
+        input_render(&led.input, strlen(astr), led.wh-1, led.ww-strlen(astr));
     }
 }
 
@@ -624,6 +621,7 @@ static void _jump_to_line(void) {
 }
 
 static bool _update_none(int ch) {
+    if (ch == KEY_RESIZE) getmaxyx(stdscr, led.wh, led.ww);
     if (ch == CTRL('c') || ch == CTRL('q')) {
         led.mode = MODE_NONE;
         return TRUE;
@@ -722,6 +720,12 @@ static void _update_insert(int ch) {
     } break;
 #endif
 
+    case KEY_RESIZE:
+        getmaxyx(stdscr, led.wh, led.ww);
+        while (led.cur.line-led.cur.off < 0) move_down();
+        while (led.cur.line-led.cur.off >= led.wh-1) move_up();
+        led.cur.sel = led.cur.cur;
+        break;
     case CTRL('q'):
         exit_program();
         break;
@@ -750,8 +754,7 @@ static void _update_insert(int ch) {
         led.mode = MODE_OPEN;
         input_reset(&led.input);
         break;
-    case CTRL('r'):
-    case CTRL('f'):
+    case CTRL('r'): case CTRL('f'):
         led.mode = MODE_FIND;
         input_reset(&led.input);
         break;
@@ -867,9 +870,9 @@ int main(int argc, char **argv) {
         return 1;
     }
     open_file(strdup(argv[1]));
+    _load_config_file();
     _init_curses();
     for (;;) {
-        getmaxyx(stdscr, led.wh, led.ww);
         _render_text();
         _render_status();
         _update();
