@@ -265,6 +265,7 @@ static void _init_curses(void) {
     init_pair(PAIR_OPERATOR, COLOR_OPERATOR, -1);
     init_pair(PAIR_COMMENT,  COLOR_COMMENT,  -1);
 #endif
+    getmaxyx(stdscr, led.wh, led.ww);
 }
 
 static void _quit_curses(void) {
@@ -324,11 +325,9 @@ void open_file(char *path) {
     if (!led.text) goto open_file_fail;
     if (fread(led.text, 1, led.text_sz, file) != led.text_sz) goto open_file_fail;
 
-    _init_syntaxes();
     load_syntax(NULL);
     _count_lines();
     fclose(file);
-    _load_config_file();
     return;
 open_file_fail:
     if (file) fclose(file);
@@ -740,8 +739,6 @@ static void _render_text(void) {
     erase();
     _last_token = 0;
     int cur_off = _calculate_line_size(), off = 0;
-    while (led.cur.line-led.cur.off < 0) { move_down(); led.cur.sel = led.cur.cur; }
-    while (led.cur.line-led.cur.off >= led.wh-1) { move_up(); led.cur.sel = led.cur.cur; }
     if (cfg_get_value_idx(CFG_LINE_NUMBER)->as_bool) {
         char linenu[16];
         sprintf(linenu, " %ld ", led.lines_sz);
@@ -911,7 +908,11 @@ static void _update_insert(int ch) {
     } break;
 #endif
 
-    case KEY_RESIZE: break;
+    case KEY_RESIZE:
+        getmaxyx(stdscr, led.wh, led.ww);
+        while (led.cur.line-led.cur.off < 0) { move_down(); led.cur.sel = led.cur.cur; }
+        while (led.cur.line-led.cur.off >= led.wh-1) { move_up(); led.cur.sel = led.cur.cur; }
+        break;
     case CTRL('q'):
         exit_program();
         break;
@@ -1056,10 +1057,11 @@ int main(int argc, char **argv) {
         fprintf(stderr, "usage: %s <file>\n", argv[0]);
         return 1;
     }
+    _init_syntaxes();
+    _load_config_file();
     open_file(strdup(argv[1]));
     _init_curses();
     for (;;) {
-        getmaxyx(stdscr, led.wh, led.ww);
         _render_text();
         _render_status();
         _update();
