@@ -375,11 +375,17 @@ void remove_next_word(void) {
     remove_selection();
 }
 
+static char *_casestrstr(const char *haystack, const char *needle) {
+    if (cfg_get_value_idx(CFG_IGNORE_CASE)->as_int)
+        return strcasestr(haystack, needle);
+    return strstr(haystack, needle);
+}
+
 void find_string(char *to_find) {
     char *str = NULL;
-    if ((str = strstr(led.text+led.cur.cur+1, to_find))) {
+    if ((str = _casestrstr(led.text+led.cur.cur+1, to_find))) {
         while (led.text+led.cur.cur != str) move_right();
-    } else if ((str = strstr(led.text, to_find))) {
+    } else if ((str = _casestrstr(led.text, to_find))) {
         led.cur = (cursor_t) {0};
         while (led.text+led.cur.cur != str) move_right();
     } else return;

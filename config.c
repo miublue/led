@@ -20,6 +20,7 @@ static struct { char *key; cfg_value_t val; } _config_values[NUM_CONFIG_VALUES] 
     [CFG_TAB_WIDTH]    = { "tabwidth",   CVAL_INT(4) },
     [CFG_EXPAND_TAB]   = { "expandtab",  CVAL_BOOL(true) },
     [CFG_LINE_NUMBER]  = { "linenumber", CVAL_BOOL(false) },
+    [CFG_IGNORE_CASE]  = { "ignorecase", CVAL_BOOL(false) },
 };
 
 static struct { char *text; int sz, cur; } cfg;
