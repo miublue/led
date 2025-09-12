@@ -326,10 +326,10 @@ void indent(void) {
     if (led.readonly) return;
     int cur = led.cur.cur, add = 1;
     led.cur.cur = led.lines[led.cur.line].start;
-    if (!cfg_get_value_idx(CFG_EXPAND_TAB)->as_bool || !strcasecmp(led.file, "makefile")) {
+    if (!cfg_get_value(CFG_EXPANDTAB)->as_bool || !strcasecmp(led.file, "makefile")) {
         insert_char('\t');
     } else {
-        for (add = 0; add < cfg_get_value_idx(CFG_TAB_WIDTH)->as_int; ++add)
+        for (add = 0; add < cfg_get_value(CFG_TABWIDTH)->as_int; ++add)
             insert_char(' ');
     }
     led.cur.cur = cur + add;
@@ -344,7 +344,7 @@ void unindent(void) {
     if (led.text[led.cur.cur] == '\t') {
         remove_char(FALSE);
     } else {
-        for (rem = 0; rem < cfg_get_value_idx(CFG_TAB_WIDTH)->as_int && led.text[led.cur.cur] == ' '; ++rem)
+        for (rem = 0; rem < cfg_get_value(CFG_TABWIDTH)->as_int && led.text[led.cur.cur] == ' '; ++rem)
             remove_char(FALSE);
     }
     led.cur.cur = cur - rem;
@@ -376,7 +376,7 @@ void remove_next_word(void) {
 }
 
 static char *_casestrstr(const char *haystack, const char *needle) {
-    if (cfg_get_value_idx(CFG_IGNORE_CASE)->as_int)
+    if (cfg_get_value(CFG_IGNORECASE)->as_int)
         return strcasestr(haystack, needle);
     return strstr(haystack, needle);
 }
@@ -535,7 +535,7 @@ static inline bool _is_selected(int i) {
 static void _render_line(int l, int off) {
     line_t line = led.lines[l];
     int sz = off;
-    const int tab_width = cfg_get_value_idx(CFG_TAB_WIDTH)->as_int;
+    const int tab_width = cfg_get_value(CFG_TABWIDTH)->as_int;
     for (int i = line.start; i <= line.end; ++i) {
         int attr = 0;
         if (led.cur.cur == i || _is_selected(i)) attr = A_REVERSE;
@@ -550,21 +550,21 @@ static void _render_line(int l, int off) {
         } else sz++;
         attroff(attr);
     }
-    if (cfg_get_value_idx(CFG_LINE_NUMBER)->as_bool)
+    if (cfg_get_value(CFG_LINENUMBER)->as_bool)
         mvprintw(l-led.cur.off, 0, " %d ", l+1);
 }
 
 static inline int _calculate_line_size(void) {
     int sz = 0;
     for (int i = led.lines[led.cur.line].start; i < led.cur.cur; ++i)
-        sz += (led.text[i] == '\t')? cfg_get_value_idx(CFG_TAB_WIDTH)->as_int : 1;
+        sz += (led.text[i] == '\t')? cfg_get_value(CFG_TABWIDTH)->as_int : 1;
     return sz;
 }
 
 static void _render_text(void) {
     erase();
     int cur_off = _calculate_line_size(), off = 0;
-    if (cfg_get_value_idx(CFG_LINE_NUMBER)->as_bool) {
+    if (cfg_get_value(CFG_LINENUMBER)->as_bool) {
         char linenu[16];
         sprintf(linenu, " %ld ", led.lines_sz);
         off = strlen(linenu);

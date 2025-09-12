@@ -12,7 +12,7 @@ void command_set(void) {
     if (!key) return;
     cfg_token_t tok_val = cfg_next_token();
     if (!tok_val.sz) return;
-    cfg_value_t *val = cfg_get_value_key(key);
+    cfg_value_t *val = cfg_get_value(key);
     free(key);
     if (val) {
         if (val->type == CTYP_STR) free(val->as_str);

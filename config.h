@@ -3,13 +3,10 @@
 
 #include <stdbool.h>
 
-enum {
-    CFG_TAB_WIDTH,
-    CFG_EXPAND_TAB,
-    CFG_LINE_NUMBER,
-    CFG_IGNORE_CASE,
-    NUM_CONFIG_VALUES,
-};
+#define CFG_EXPANDTAB "expandtab"
+#define CFG_TABWIDTH "tabwidth"
+#define CFG_IGNORECASE "ignorecase"
+#define CFG_LINENUMBER "linenumber"
 
 typedef void (*cfg_callback_t)();
 typedef struct { char *ptr; int sz; } cfg_token_t;
@@ -27,8 +24,7 @@ typedef struct {
 #define CVAL_INT(NUM) ((cfg_value_t){.type = CTYP_INT, .as_int = NUM})
 #define CVAL_STR(STR) ((cfg_value_t){.type = CTYP_STR, .as_str = STR})
 
-cfg_value_t *cfg_get_value_idx(int id);
-cfg_value_t *cfg_get_value_key(char *key);
+cfg_value_t *cfg_get_value(char *key);
 cfg_value_t cfg_parse_value(cfg_token_t tok);
 bool cfg_compare_tok(cfg_token_t tok, const char *str);
 cfg_token_t cfg_next_token(void);

@@ -16,11 +16,11 @@ static struct { char *name; cfg_callback_t callback; } _config_commands[] = {
     { "quit",   command_quit },
 };
 
-static struct { char *key; cfg_value_t val; } _config_values[NUM_CONFIG_VALUES] = {
-    [CFG_TAB_WIDTH]    = { "tabwidth",   CVAL_INT(4) },
-    [CFG_EXPAND_TAB]   = { "expandtab",  CVAL_BOOL(true) },
-    [CFG_LINE_NUMBER]  = { "linenumber", CVAL_BOOL(false) },
-    [CFG_IGNORE_CASE]  = { "ignorecase", CVAL_BOOL(false) },
+static struct { char *key; cfg_value_t val; } _config_values[] = {
+    { CFG_TABWIDTH,   CVAL_INT(4) },
+    { CFG_EXPANDTAB,  CVAL_BOOL(true) },
+    { CFG_LINENUMBER, CVAL_BOOL(false) },
+    { CFG_IGNORECASE, CVAL_BOOL(false) },
 };
 
 static struct { char *text; int sz, cur; } cfg;
@@ -77,11 +77,7 @@ cfg_value_t cfg_parse_value(cfg_token_t tok) {
     return val;
 }
 
-cfg_value_t *cfg_get_value_idx(int id) {
-    return (id >= NUM_CONFIG_VALUES)? NULL : &_config_values[id].val;
-}
-
-cfg_value_t *cfg_get_value_key(char *key) {
+cfg_value_t *cfg_get_value(char *key) {
     for (int i = 0; i < LENGTH(_config_values); ++i) {
         if (!strcmp(_config_values[i].key, key))
             return &_config_values[i].val;
