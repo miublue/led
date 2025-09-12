@@ -3,8 +3,8 @@
 
 #include <stdbool.h>
 
-#define CFG_EXPANDTAB "expandtab"
-#define CFG_TABWIDTH "tabwidth"
+#define CFG_EXPANDTAB  "expandtab"
+#define CFG_TABWIDTH   "tabwidth"
 #define CFG_IGNORECASE "ignorecase"
 #define CFG_LINENUMBER "linenumber"
 
