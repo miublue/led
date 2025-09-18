@@ -190,7 +190,6 @@ void open_file(char *path) {
     led.action = -1;
     input_reset(&led.input);
     led.file = path;
-
     FILE *file = fopen(path, "r+");
     if (!file) file = fopen(path, "w+"); // oof
     if (!file) { // lul
@@ -204,7 +203,6 @@ void open_file(char *path) {
     led.text = calloc(1, led.text_alloc);
     if (!led.text) goto open_file_fail;
     if (fread(led.text, 1, led.text_sz, file) != led.text_sz) goto open_file_fail;
-
     _count_lines();
     fclose(file);
     return;
@@ -326,12 +324,10 @@ void indent(void) {
     if (led.readonly) return;
     int cur = led.cur.cur, add = 1;
     led.cur.cur = led.lines[led.cur.line].start;
-    if (!cfg_get_value(CFG_EXPANDTAB)->as_bool || !strcasecmp(led.file, "makefile")) {
+    if (!cfg_get_value(CFG_EXPANDTAB)->as_bool || !strcasecmp(led.file, "makefile"))
         insert_char('\t');
-    } else {
-        for (add = 0; add < cfg_get_value(CFG_TABWIDTH)->as_int; ++add)
-            insert_char(' ');
-    }
+    else for (add = 0; add < cfg_get_value(CFG_TABWIDTH)->as_int; ++add)
+        insert_char(' ');
     led.cur.cur = cur + add;
     if (led.cur.cur > led.lines[led.cur.line].end) led.cur.cur = led.lines[led.cur.line].end;
     if (led.cur.cur < led.lines[led.cur.line].start) led.cur.cur = led.lines[led.cur.line].start;
@@ -341,12 +337,10 @@ void unindent(void) {
     if (led.readonly) return;
     int cur = led.cur.cur, rem = 1;
     led.cur.cur = led.lines[led.cur.line].start;
-    if (led.text[led.cur.cur] == '\t') {
+    if (led.text[led.cur.cur] == '\t')
         remove_char(FALSE);
-    } else {
-        for (rem = 0; rem < cfg_get_value(CFG_TABWIDTH)->as_int && led.text[led.cur.cur] == ' '; ++rem)
-            remove_char(FALSE);
-    }
+    else for (rem = 0; rem < cfg_get_value(CFG_TABWIDTH)->as_int && led.text[led.cur.cur] == ' '; ++rem)
+        remove_char(FALSE);
     led.cur.cur = cur - rem;
     if (led.cur.cur > led.lines[led.cur.line].end) led.cur.cur = led.lines[led.cur.line].end;
     if (led.cur.cur < led.lines[led.cur.line].start) led.cur.cur = led.lines[led.cur.line].start;
@@ -639,8 +633,7 @@ static void _update_replace(int ch) {
     if (_update_none(ch)) {
         led.input = led.input_find;
         return;
-    }
-    if (ch == '\n' || ch == CTRL('r')) {
+    } else if (ch == '\n' || ch == CTRL('r')) {
         if (led.input_find.text_sz) {
             _replace_current();
             _find_next(led.input_find);
@@ -725,7 +718,6 @@ static void _update_insert(int ch) {
         }
     } break;
 #endif
-
     case KEY_RESIZE:
         getmaxyx(stdscr, led.wh, led.ww);
         while (led.cur.line-led.cur.off < 0) move_down();
