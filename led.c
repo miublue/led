@@ -53,7 +53,6 @@ static bool _is_action_repeat(int type, action_t *act) {
     }
 }
 
-// XXX: appending to action character by character is also kinda slow
 static void _append_action(int type, char *buf, int sz) {
     if (led.action != -1 && led.actions[led.action].type == type) {
         action_t *act = &led.actions[led.action];
