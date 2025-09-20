@@ -1,7 +1,0 @@
-# turns tabs to spaces
-set expandtab true
-# tab size
-set tabwidth 4
-# don't show line numbers
-set linenumber false
-
