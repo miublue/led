@@ -371,12 +371,11 @@ void find_string(char *to_find) {
 
 void replace_string(char *to_replace, char *str) {
     int m = MIN(led.cur.cur, led.cur.sel);
-    int rep_sz = strlen(to_replace);
+    int rep_sz = strlen(to_replace), str_sz = strlen(str);
     if (!strncmp(led.text+m, to_replace, rep_sz)) {
         led.cur.cur = m;
-        // XXX: undo is kinda goofy when replacing text with empty string
         remove_text(FALSE, rep_sz);
-        insert_text(str, strlen(str));
+        if (str_sz) insert_text(str, str_sz);
     }
 }
 
