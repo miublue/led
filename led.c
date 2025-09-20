@@ -39,10 +39,11 @@ static void _free_actions(void) {
     if (led.actions) free(led.actions);
 }
 
-static void _insert_to_action(action_t *act, char c) {
-    if (act->text_sz >= act->text_alloc)
-        act->text = realloc(act->text, sizeof(char) * (act->text_alloc += ALLOC_SIZE));
-    act->text[act->text_sz++] = c;
+static void _insert_to_action(action_t *act, char *buf, int sz) {
+    if (act->text_sz+sz >= act->text_alloc)
+        act->text = realloc(act->text, sizeof(char) * (act->text_alloc += sz+ALLOC_SIZE));
+    memmove(act->text+act->text_sz, buf, sz);
+    act->text_sz += sz;
 }
 
 static bool _is_action_repeat(int type, action_t *act) {
@@ -54,17 +55,17 @@ static bool _is_action_repeat(int type, action_t *act) {
 }
 
 // XXX: appending to action character by character is also kinda slow
-static void _append_action(int type, char c) {
+static void _append_action(int type, char *buf, int sz) {
     if (led.action != -1 && led.actions[led.action].type == type) {
         action_t *act = &led.actions[led.action];
         bool repeat = _is_action_repeat(type, act);
         if (repeat && type == ACTION_BACKSPACE) act->cur = led.cur;
-        if (repeat) return _insert_to_action(act, c);
+        if (repeat) return _insert_to_action(act, buf, sz);
     }
     action_t act = { .type = type, .cur = led.cur };
-    act.text = malloc(sizeof(char) * (act.text_alloc = ALLOC_SIZE));
+    act.text = malloc(sizeof(char) * (act.text_alloc = sz+ALLOC_SIZE));
     act.text_sz = 0;
-    _insert_to_action(&act, c);
+    _insert_to_action(&act, buf, sz);
     _actions_append(act);
 }
 
@@ -85,13 +86,6 @@ static inline void _undo_backspace(action_t *act) {
     insert_text(text, act->text_sz);
 }
 
-static inline void _undo_upper_or_lower(action_t *act, int type) {
-    for (int i = 0; i < act->text_sz; ++i) {
-        if (type == ACTION_TOUPPER) led.text[led.cur.cur+i] = tolower(led.text[led.cur.cur+i]);
-        else led.text[led.cur.cur+i] = toupper(led.text[led.cur.cur+i]);
-    }
-}
-
 void undo_action(void) {
     if (led.action == -1 || led.readonly) return;
     action_t *act = &led.actions[led.action--];
@@ -101,8 +95,6 @@ void undo_action(void) {
     case ACTION_INSERT: _undo_insert(act); break;
     case ACTION_DELETE: _undo_delete(act); break;
     case ACTION_BACKSPACE: _undo_backspace(act); break;
-    case ACTION_TOUPPER: case ACTION_TOLOWER:
-        _undo_upper_or_lower(act, act->type); break;
     default: break;
     }
     led.is_undo = FALSE;
@@ -117,9 +109,6 @@ void redo_action(void) {
     case ACTION_INSERT: _undo_delete(act); break;
     case ACTION_DELETE: _undo_insert(act); break;
     case ACTION_BACKSPACE: _undo_insert(act); break;
-    case ACTION_TOUPPER: case ACTION_TOLOWER:
-        _undo_upper_or_lower(act, act->type == ACTION_TOUPPER? ACTION_TOLOWER : ACTION_TOUPPER);
-        break;
     default: break;
     }
     led.is_undo = FALSE;
@@ -310,10 +299,8 @@ void insert_text(char *buf, int sz) {
     memmove(led.text+led.cur.cur, buf, sz);
     led.text_sz += sz;
     _count_lines();
-    for (int i = 0; i < sz; ++i) {
-        if (!led.is_undo) _append_action(ACTION_INSERT, buf[i]);
-        move_right();
-    }
+    if (!led.is_undo) _append_action(ACTION_INSERT, buf, sz);
+    for (int i = 0; i < sz; ++i) move_right();
 }
 
 void insert_char(char ch) {
@@ -350,7 +337,7 @@ void remove_char(bool backspace) {
     if (led.readonly) return;
     if (backspace) move_left();
     if (led.text_sz == 0 || led.cur.cur >= led.text_sz-1) return;
-    if (!led.is_undo) _append_action(backspace? ACTION_BACKSPACE : ACTION_DELETE, led.text[led.cur.cur]);
+    if (!led.is_undo) _append_action(backspace? ACTION_BACKSPACE : ACTION_DELETE, led.text+led.cur.cur, 1);
     memmove(led.text+led.cur.cur, led.text+led.cur.cur+1, led.text_sz-led.cur.cur);
     --led.text_sz;
     _count_lines();
@@ -422,10 +409,7 @@ void remove_selection(void) {
     _goto_start_of_selection();
     // make sure it doesn't try to delete text out of bounds
     if (sel.end >= led.text_sz-1) sel.end = led.text_sz-2;
-    if (!led.is_undo) {
-        for (int i = sel.start; i <= sel.end; ++i)
-            _append_action(ACTION_DELETE, led.text[i]);
-    }
+    if (!led.is_undo) _append_action(ACTION_DELETE, led.text+sel.start, (sel.end-sel.start)+1);
     memmove(led.text+sel.start, led.text+sel.end+1, led.text_sz-sel.end);
     led.text_sz -= (sel.end-sel.start)+1;
     _count_lines();
@@ -466,30 +450,6 @@ void paste_text(void) {
     fclose(file);
     insert_text(buf, sz);
     free(buf);
-}
-
-void word_to_lower(void) {
-    if (led.readonly) return;
-    if (!is_selecting()) move_next_word();
-    selection_t sel = get_selection();
-    _goto_start_of_selection();
-    for (led.cur.cur = sel.start; led.cur.cur <= sel.end; move_right()) {
-        char *c = &led.text[led.cur.cur];
-        if (isupper(*c)) *c = tolower(*c);
-        if (!led.is_undo) _append_action(ACTION_TOLOWER, *c);
-    }
-}
-
-void word_to_upper(void) {
-    if (led.readonly) return;
-    if (!is_selecting()) move_next_word();
-    selection_t sel = get_selection();
-    _goto_start_of_selection();
-    for (led.cur.cur = sel.start; led.cur.cur <= sel.end; move_right()) {
-        char *c = &led.text[led.cur.cur];
-        if (islower(*c)) *c = toupper(*c);
-        if (!led.is_undo) _append_action(ACTION_TOUPPER, *c);
-    }
 }
 
 static inline selection_t _get_selection_line_range(void) {
@@ -759,10 +719,6 @@ static void _update_insert(int ch) {
     case CTRL('n'):
         if (led.input.text_sz) _find_next(led.input);
         return;
-    case CTRL('u'):
-        word_to_upper(); break;
-    case CTRL('l'):
-        word_to_lower(); break;
     case CTRL('z'):
         undo_action(); break;
     case CTRL('y'):
