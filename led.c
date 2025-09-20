@@ -307,6 +307,33 @@ void insert_char(char ch) {
     insert_text(&ch, 1);
 }
 
+void remove_text(bool backspace, int sz) {
+    if (led.readonly) return;
+    if (backspace) for (int i = 0; i < sz; ++i) move_left();
+    if (led.text_sz == 0 || led.cur.cur >= led.text_sz-1) return;
+    if (!led.is_undo) _append_action(backspace? ACTION_BACKSPACE : ACTION_DELETE, led.text+led.cur.cur, sz);
+    memmove(led.text+led.cur.cur, led.text+led.cur.cur+sz, led.text_sz-led.cur.cur);
+    led.text_sz -= sz;
+    _count_lines();
+}
+
+void remove_char(bool backspace) {
+    remove_text(backspace, 1);
+}
+
+void remove_prev_word(void) {
+    if (led.cur.cur == 0) return;
+    if (_is_delim(led.text[led.cur.cur])) move_left();
+    led.cur.sel = led.cur.cur;
+    move_prev_word();
+    remove_selection();
+}
+
+void remove_next_word(void) {
+    move_next_word();
+    remove_selection();
+}
+
 void indent(void) {
     if (led.readonly) return;
     int cur = led.cur.cur, add = 1;
@@ -333,29 +360,6 @@ void unindent(void) {
     if (led.cur.cur < led.lines[led.cur.line].start) led.cur.cur = led.lines[led.cur.line].start;
 }
 
-void remove_char(bool backspace) {
-    if (led.readonly) return;
-    if (backspace) move_left();
-    if (led.text_sz == 0 || led.cur.cur >= led.text_sz-1) return;
-    if (!led.is_undo) _append_action(backspace? ACTION_BACKSPACE : ACTION_DELETE, led.text+led.cur.cur, 1);
-    memmove(led.text+led.cur.cur, led.text+led.cur.cur+1, led.text_sz-led.cur.cur);
-    --led.text_sz;
-    _count_lines();
-}
-
-void remove_prev_word(void) {
-    if (led.cur.cur == 0) return;
-    if (_is_delim(led.text[led.cur.cur])) move_left();
-    led.cur.sel = led.cur.cur;
-    move_prev_word();
-    remove_selection();
-}
-
-void remove_next_word(void) {
-    move_next_word();
-    remove_selection();
-}
-
 static char *_casestrstr(const char *haystack, const char *needle) {
     if (cfg_get_value(CFG_IGNORECASE)->as_int)
         return strcasestr(haystack, needle);
@@ -379,10 +383,8 @@ void replace_string(char *to_replace, char *str) {
     int rep_sz = strlen(to_replace);
     if (!strncmp(led.text+m, to_replace, rep_sz)) {
         led.cur.cur = m;
-        for (int i = 0; i < rep_sz; ++i)
-            remove_char(FALSE);
-        for (int i = 0; i < strlen(str); ++i)
-            insert_char(str[i]);
+        remove_text(FALSE, rep_sz);
+        insert_text(str, strlen(str));
     }
 }
 
@@ -409,10 +411,7 @@ void remove_selection(void) {
     _goto_start_of_selection();
     // make sure it doesn't try to delete text out of bounds
     if (sel.end >= led.text_sz-1) sel.end = led.text_sz-2;
-    if (!led.is_undo) _append_action(ACTION_DELETE, led.text+sel.start, (sel.end-sel.start)+1);
-    memmove(led.text+sel.start, led.text+sel.end+1, led.text_sz-sel.end);
-    led.text_sz -= (sel.end-sel.start)+1;
-    _count_lines();
+    remove_text(FALSE, (sel.end-sel.start)+1);
 }
 
 void copy_selection(void) {

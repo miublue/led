@@ -45,6 +45,7 @@ void move_next_word(void);
 void move_prev_word(void);
 void insert_text(char *buf, int sz);
 void insert_char(char ch);
+void remove_text(bool backspace, int sz);
 void remove_char(bool backspace);
 void remove_next_word(void);
 void remove_prev_word(void);
