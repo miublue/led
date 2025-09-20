@@ -9,9 +9,7 @@
 #define ALLOC_SIZE 512
 
 typedef struct line_t selection_t;
-typedef struct line_t {
-    uint32_t start, end;
-} line_t;
+typedef struct line_t { uint32_t start, end; } line_t;
 
 typedef struct cursor_t {
     int cur, off, line, sel;
@@ -19,7 +17,7 @@ typedef struct cursor_t {
     // (so maybe we could have multiple cursors later?)
 } cursor_t;
 
-enum { MODE_NONE, MODE_FIND, MODE_GOTO, MODE_OPEN, MODE_REPLACE, MODE_COMMAND };
+enum { MODE_NONE, MODE_FIND, MODE_GOTO, MODE_OPEN, MODE_REPLACE };
 
 typedef struct {
     enum { ACTION_INSERT, ACTION_DELETE, ACTION_BACKSPACE } type;

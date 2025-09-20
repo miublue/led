@@ -6,7 +6,6 @@
 #include "inputbox.h"
 #include "led.h"
 #include "config.h"
-#include "callbacks.h"
 
 // ABANDON ALL HOPE, YE WHO ENTER HERE
 
@@ -156,12 +155,6 @@ void exit_program(void) {
     if (led.actions) _free_actions();
     _quit_curses();
     exit(0);
-}
-
-static void _load_config_file(void) {
-    char path[ALLOC_SIZE] = {0};
-    sprintf(path, "%s/.ledrc", getenv("HOME"));
-    cfg_parse_file(path);
 }
 
 void open_file(char *path) {
@@ -338,9 +331,9 @@ void indent(void) {
     if (led.readonly) return;
     int cur = led.cur.cur, add = 1;
     led.cur.cur = led.lines[led.cur.line].start;
-    if (!cfg_get_value(CFG_EXPANDTAB)->as_bool || !strcasecmp(led.file, "makefile"))
+    if (!CFG_EXPANDTAB || !strcasecmp(led.file, "makefile")) 
         insert_char('\t');
-    else for (add = 0; add < cfg_get_value(CFG_TABWIDTH)->as_int; ++add)
+    else for (add = 0; add < CFG_TABWIDTH; ++add)
         insert_char(' ');
     led.cur.cur = cur + add;
     if (led.cur.cur > led.lines[led.cur.line].end) led.cur.cur = led.lines[led.cur.line].end;
@@ -353,7 +346,7 @@ void unindent(void) {
     led.cur.cur = led.lines[led.cur.line].start;
     if (led.text[led.cur.cur] == '\t')
         remove_char(FALSE);
-    else for (rem = 0; rem < cfg_get_value(CFG_TABWIDTH)->as_int && led.text[led.cur.cur] == ' '; ++rem)
+    else for (rem = 0; rem < CFG_TABWIDTH && led.text[led.cur.cur] == ' '; ++rem)
         remove_char(FALSE);
     led.cur.cur = cur - rem;
     if (led.cur.cur > led.lines[led.cur.line].end) led.cur.cur = led.lines[led.cur.line].end;
@@ -361,8 +354,7 @@ void unindent(void) {
 }
 
 static char *_casestrstr(const char *haystack, const char *needle) {
-    if (cfg_get_value(CFG_IGNORECASE)->as_int)
-        return strcasestr(haystack, needle);
+    if (CFG_IGNORECASE) return strcasestr(haystack, needle);
     return strstr(haystack, needle);
 }
 
@@ -488,7 +480,6 @@ static inline bool _is_selected(int i) {
 static void _render_line(int l, int off) {
     line_t line = led.lines[l];
     int sz = off;
-    const int tab_width = cfg_get_value(CFG_TABWIDTH)->as_int;
     for (int i = line.start; i <= line.end; ++i) {
         int attr = 0;
         if (led.cur.cur == i || _is_selected(i)) attr = A_REVERSE;
@@ -496,28 +487,27 @@ static void _render_line(int l, int off) {
         mvprintw(l-led.cur.off, sz, "%c", isspace(led.text[i])? ' ':led.text[i]);
         if (led.text[i] == '\t') {
             if (_is_selected(i)) {
-                for (int j = 0; j < tab_width; ++j)
+                for (int j = 0; j < CFG_TABWIDTH; ++j)
                     mvprintw(l-led.cur.off, sz+j, " ");
             }
-            sz += tab_width;
+            sz += CFG_TABWIDTH;
         } else sz++;
         attroff(attr);
     }
-    if (cfg_get_value(CFG_LINENUMBER)->as_bool)
-        mvprintw(l-led.cur.off, 0, " %d ", l+1);
+    if (CFG_LINENUMBER) mvprintw(l-led.cur.off, 0, " %d ", l+1);
 }
 
 static inline int _calculate_line_size(void) {
     int sz = 0;
     for (int i = led.lines[led.cur.line].start; i < led.cur.cur; ++i)
-        sz += (led.text[i] == '\t')? cfg_get_value(CFG_TABWIDTH)->as_int : 1;
+        sz += (led.text[i] == '\t')? CFG_TABWIDTH : 1;
     return sz;
 }
 
 static void _render_text(void) {
     erase();
     int cur_off = _calculate_line_size(), off = 0;
-    if (cfg_get_value(CFG_LINENUMBER)->as_bool) {
+    if (CFG_LINENUMBER) {
         char linenu[16];
         sprintf(linenu, " %ld ", led.lines_sz);
         off = strlen(linenu);
@@ -534,7 +524,6 @@ static inline char *_mode_to_cstr(void) {
     case MODE_FIND: return "Find: ";
     case MODE_GOTO: return "Goto: ";
     case MODE_OPEN: return "Open: ";
-    case MODE_COMMAND: return "Command: ";
     case MODE_REPLACE: {
         static char str[ALLOC_SIZE] = {0};
         sprintf(str, "Replace(%.*s): ", led.input_find.text_sz, led.input_find.text);
@@ -623,7 +612,6 @@ static void _update_find(int ch) {
     input_update(&led.input, ch);
 }
 
-
 #define FUPDATE(NAME, BODY) \
 static void NAME(int ch) { \
     if (_update_none(ch)) return; \
@@ -636,7 +624,6 @@ static void NAME(int ch) { \
 
 FUPDATE(_update_goto, _jump_to_line())
 FUPDATE(_update_open, open_file(strndup(led.input.text, led.input.text_sz)))
-FUPDATE(_update_command, cfg_parse(led.input.text, led.input.text_sz))
 
 #undef FUPDATE
 
@@ -698,10 +685,6 @@ static void _update_insert(int ch) {
     case CTRL('x'):
         copy_selection();
         remove_selection();
-        break;
-    case CTRL('e'):
-        led.mode = MODE_COMMAND;
-        input_reset(&led.input);
         break;
     case CTRL('g'):
         led.mode = MODE_GOTO;
@@ -811,7 +794,6 @@ static void _update(void) {
         [MODE_GOTO]    = &_update_goto,
         [MODE_OPEN]    = &_update_open,
         [MODE_REPLACE] = &_update_replace,
-        [MODE_COMMAND] = &_update_command,
     };
     int ch = getch();
     return update_fns[led.mode](ch);
@@ -823,7 +805,6 @@ int main(int argc, char **argv) {
         return 1;
     }
     open_file(strdup(argv[1]));
-    _load_config_file();
     _init_curses();
     for (;;) {
         _render_text();
