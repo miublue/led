@@ -374,6 +374,7 @@ void replace_string(char *to_replace, char *str) {
     int rep_sz = strlen(to_replace);
     if (!strncmp(led.text+m, to_replace, rep_sz)) {
         led.cur.cur = m;
+        // XXX: undo is kinda goofy when replacing text with empty string
         remove_text(FALSE, rep_sz);
         insert_text(str, strlen(str));
     }
@@ -627,6 +628,7 @@ FUPDATE(_update_open, open_file(strndup(led.input.text, led.input.text_sz)))
 #undef FUPDATE
 
 static void _update_insert(int ch) {
+    // XXX: configurable keys
     switch (ch) {
 #ifdef _USE_MTM // bruh
     case 200: {
