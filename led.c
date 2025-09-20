@@ -360,10 +360,10 @@ static char *_casestrstr(const char *haystack, const char *needle) {
 void find_string(char *to_find) {
     char *str = NULL;
     if ((str = _casestrstr(led.text+led.cur.cur+1, to_find))) {
-        while (led.text+led.cur.cur != str) move_right();
+        while (led.text+led.cur.cur != str && led.cur.cur < led.text_sz) move_right();
     } else if ((str = _casestrstr(led.text, to_find))) {
         led.cur = (cursor_t) {0};
-        while (led.text+led.cur.cur != str) move_right();
+        while (led.text+led.cur.cur != str && led.cur.cur < led.text_sz) move_right();
     } else return;
     led.cur.sel = led.cur.cur;
     led.cur.cur += strlen(to_find)-1;
