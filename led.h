@@ -26,7 +26,7 @@ typedef struct {
     char *text;
 } action_t;
 
-void open_file(char *path);
+void open_file(char *path, bool readonly);
 void write_file(char *path);
 void exit_program(void);
 void scroll_up(void);

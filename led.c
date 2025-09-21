@@ -1,3 +1,4 @@
+#include <sys/stat.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -156,7 +157,9 @@ void exit_program(void) {
     exit(0);
 }
 
-void open_file(char *path) {
+void open_file(char *path, bool readonly) {
+    struct stat stbuf;
+    FILE *file = NULL;
     if (led.file) free(led.file);
     if (led.text) free(led.text);
     if (led.lines) free(led.lines);
@@ -171,13 +174,10 @@ void open_file(char *path) {
     led.action = -1;
     input_reset(&led.input);
     led.file = path;
-    FILE *file = fopen(path, "r+");
-    if (!file) file = fopen(path, "w+"); // oof
-    if (!file) { // lul
-        file = fopen(path, "r");
-        led.readonly = TRUE;
-    }
-    if (!file) goto open_file_fail; // LMFAO
+    // try creating file if it cannot 'stat' it, exit if that also fails
+    if (stat(path, &stbuf) != 0 && !(file = fopen(path, "w+"))) goto open_file_fail;
+    if (readonly || !(stbuf.st_mode & S_IWUSR)) led.readonly = TRUE;
+    if (!file) file = fopen(path, "r");
     fseek(file, 0, SEEK_END);
     led.text_alloc = 1 + (led.text_sz = ftell(file));
     rewind(file);
@@ -189,7 +189,7 @@ void open_file(char *path) {
     return;
 open_file_fail:
     if (file) fclose(file);
-    fprintf(stderr, "error: could not open file: %s\n", path);
+    fprintf(stderr, "error: could not open file '%s'\n", path);
     exit_program();
 }
 
@@ -622,7 +622,7 @@ static void NAME(int ch) { \
 }
 
 FUPDATE(_update_goto, _jump_to_line())
-FUPDATE(_update_open, open_file(strndup(led.input.text, led.input.text_sz)))
+FUPDATE(_update_open, open_file(strndup(led.input.text, led.input.text_sz), led.readonly))
 
 #undef FUPDATE
 
@@ -799,12 +799,24 @@ static void _update(void) {
     return update_fns[led.mode](ch);
 }
 
+static void _usage(char *prg, bool extended) {
+    fprintf(stderr, "usage: %s [-r|-h] <file>\n", prg);
+    if (!extended) goto e;
+    fprintf(stderr, "    -h    show this help and exit\n");
+    fprintf(stderr, "    -r    open in read-only mode\n");
+e:  exit(0);
+}
+
 int main(int argc, char **argv) {
-    if (argc < 2) {
-        fprintf(stderr, "usage: %s <file>\n", argv[0]);
-        return 1;
+    if (argc < 2) _usage(argv[0], FALSE);
+    char *path = NULL;
+    for (int i = 1; i < argc; ++i) {
+        if (!strcmp(argv[i], "-h")) _usage(argv[0], TRUE);
+        else if (!strcmp(argv[i], "-r")) led.readonly = TRUE;
+        else path = argv[i];
     }
-    open_file(strdup(argv[1]));
+    if (!path) _usage(argv[0], FALSE);
+    open_file(strdup(path), led.readonly);
     _init_curses();
     for (;;) {
         _render_text();
