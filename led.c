@@ -14,7 +14,7 @@ static struct {
     size_t text_sz, text_alloc;
     size_t lines_sz, lines_alloc;
     size_t actions_sz, actions_alloc;
-    int mode, action, is_undo, readonly, ww, wh;
+    int mode, action, is_undo, is_readonly, ww, wh;
     cursor_t cur;
     char *text, *file;
     line_t *lines;
@@ -33,9 +33,8 @@ static void _actions_append(action_t act) {
 }
 
 static void _free_actions(void) {
-    for (int i = 0; i < led.actions_sz; ++i) {
+    for (int i = 0; i < led.actions_sz; ++i)
         if (led.actions[i].text_alloc) free(led.actions[i].text);
-    }
     if (led.actions) free(led.actions);
 }
 
@@ -86,7 +85,7 @@ static inline void _undo_backspace(action_t *act) {
 }
 
 void undo_action(void) {
-    if (led.action == -1 || led.readonly) return;
+    if (led.action == -1 || led.is_readonly) return;
     action_t *act = &led.actions[led.action--];
     led.cur = act->cur;
     led.is_undo = TRUE;
@@ -100,7 +99,7 @@ void undo_action(void) {
 }
 
 void redo_action(void) {
-    if (led.action+1 == led.actions_sz || led.readonly) return;
+    if (led.action+1 == led.actions_sz || led.is_readonly) return;
     action_t *act = &led.actions[++led.action];
     led.cur = act->cur;
     led.is_undo = TRUE;
@@ -157,7 +156,7 @@ void exit_program(void) {
     exit(0);
 }
 
-void open_file(char *path, bool readonly) {
+void open_file(char *path, bool is_readonly) {
     struct stat stbuf;
     FILE *file = NULL;
     if (led.file) free(led.file);
@@ -170,13 +169,13 @@ void open_file(char *path, bool readonly) {
     led.text_sz = led.lines_sz = led.actions_sz = 0;
     led.cur = (cursor_t) {0};
     led.mode = MODE_NONE;
-    led.is_undo = led.readonly = FALSE;
+    led.is_undo = led.is_readonly = FALSE;
     led.action = -1;
     input_reset(&led.input);
     led.file = path;
     // try creating file if it cannot 'stat' it, exit if that also fails
     if (stat(path, &stbuf) != 0 && !(file = fopen(path, "w+"))) goto open_file_fail;
-    if (readonly || !(stbuf.st_mode & S_IWUSR)) led.readonly = TRUE;
+    if (is_readonly || !(stbuf.st_mode & S_IWUSR)) led.is_readonly = TRUE;
     if (!file) file = fopen(path, "r");
     fseek(file, 0, SEEK_END);
     led.text_alloc = 1 + (led.text_sz = ftell(file));
@@ -194,7 +193,7 @@ open_file_fail:
 }
 
 void write_file(char *path) {
-    if (led.readonly) return;
+    if (led.is_readonly) return;
     if (!path) path = led.file;
     FILE *file = fopen(path, "w");
     fwrite(led.text, 1, led.text_sz, file);
@@ -284,7 +283,7 @@ void move_prev_word(void) {
 
 // XXX: UTF-8 lmao
 void insert_text(char *buf, int sz) {
-    if (led.readonly) return;
+    if (led.is_readonly) return;
     if (led.text_sz+sz >= led.text_alloc)
         led.text = realloc(led.text, sizeof(char) * (led.text_alloc += sz+ALLOC_SIZE));
     memmove(led.text+led.cur.cur+sz, led.text+led.cur.cur, led.text_sz-led.cur.cur);
@@ -300,7 +299,7 @@ void insert_char(char ch) {
 }
 
 void remove_text(bool backspace, int sz) {
-    if (led.readonly) return;
+    if (led.is_readonly) return;
     if (backspace) for (int i = 0; i < sz; ++i) move_left();
     if (led.text_sz == 0 || led.cur.cur >= led.text_sz-1) return;
     if (!led.is_undo) _append_action(backspace? ACTION_BACKSPACE : ACTION_DELETE, led.text+led.cur.cur, sz);
@@ -327,10 +326,11 @@ void remove_next_word(void) {
 }
 
 void indent(void) {
-    if (led.readonly) return;
+    if (led.is_readonly) return;
     int cur = led.cur.cur, add = 1;
     led.cur.cur = led.lines[led.cur.line].start;
-    if (!CFG_EXPANDTAB || !strcasecmp(led.file, "makefile")) 
+    // XXX: some filetype detection would be pretty handy later on
+    if (!CFG_EXPANDTAB || !strcasecmp(led.file, "makefile"))
         insert_char('\t');
     else for (add = 0; add < CFG_TABWIDTH; ++add)
         insert_char(' ');
@@ -340,7 +340,7 @@ void indent(void) {
 }
 
 void unindent(void) {
-    if (led.readonly) return;
+    if (led.is_readonly) return;
     int cur = led.cur.cur, rem = 1;
     led.cur.cur = led.lines[led.cur.line].start;
     if (led.text[led.cur.cur] == '\t')
@@ -382,7 +382,7 @@ void replace_string(char *to_replace, char *str) {
 void goto_line(long line) {
     if (line == 0) return;
     led.cur.cur = led.cur.off = led.cur.line = 0;
-    for (int i = 0; i < line-1; ++i) move_down();
+    for (int i = 0; i < MIN(line-1, led.lines_sz); ++i) move_down();
     led.cur.sel = led.cur.cur;
 }
 
@@ -393,7 +393,7 @@ static void _goto_start_of_selection(void) {
 }
 
 void remove_selection(void) {
-    if (led.readonly) return;
+    if (led.is_readonly) return;
     if (!is_selecting()) {
         led.cur.cur = led.lines[led.cur.line].start;
         led.cur.sel = led.lines[led.cur.line].end;
@@ -424,17 +424,16 @@ void copy_selection(void) {
 }
 
 void paste_text(void) {
-    if (led.readonly) return;
+    if (led.is_readonly) return;
     if (is_selecting()) remove_selection();
     // a bit roundabout, but probably still faster than pasting
     // from terminal and inserting the text character by character
     if (system("xsel -bo > /tmp/ledsel"));
     int sz;
-    char *buf;
     FILE *file = fopen("/tmp/ledsel", "r");
     if (!file) return;
     fseek(file, 0, SEEK_END);
-    buf = malloc((sz = ftell(file)) * sizeof(char));
+    char *buf = malloc((sz = ftell(file)) * sizeof(char));
     fseek(file, 0, SEEK_SET);
     if (fread(buf, sizeof(char), sz, file));
     fclose(file);
@@ -535,7 +534,7 @@ static inline char *_mode_to_cstr(void) {
 static void _render_status(void) {
     char status[ALLOC_SIZE] = {0};
     sprintf(status, " %s %d %d:%ld %s ",
-        led.readonly? "[RO]" : "",
+        led.is_readonly? "[RO]" : "",
         led.cur.cur-led.lines[led.cur.line].start+1,
         led.cur.line+1, led.lines_sz, led.file);
     mvprintw(led.wh-1, led.ww-strlen(status), "%s", status);
@@ -568,7 +567,6 @@ static void _jump_to_line(void) {
 }
 
 static bool _update_none(int ch) {
-    if (ch == KEY_RESIZE) getmaxyx(stdscr, led.wh, led.ww);
     if (ch == CTRL('c') || ch == CTRL('q')) {
         led.mode = MODE_NONE;
         return TRUE;
@@ -622,54 +620,13 @@ static void NAME(int ch) { \
 }
 
 FUPDATE(_update_goto, _jump_to_line())
-FUPDATE(_update_open, open_file(strndup(led.input.text, led.input.text_sz), led.readonly))
+FUPDATE(_update_open, open_file(strndup(led.input.text, led.input.text_sz), led.is_readonly))
 
 #undef FUPDATE
 
 static void _update_insert(int ch) {
     // XXX: configurable keys
     switch (ch) {
-#ifdef _USE_MTM // bruh
-    case 200: {
-        switch (getch()) {
-        case 160: goto_line(1); break;
-        case 155: goto_line(led.text_sz); break;
-        case 170: move_prev_word(); break;
-        case 171: return move_prev_word();
-        case 185: move_next_word(); break;
-        case 186: return move_next_word();
-        case 144:
-            if (is_selecting()) remove_selection();
-            else remove_next_word();
-            break;
-        default: break;
-        }
-    } break;
-    case 198: {
-        switch (getch()) {
-        case 137: return move_left();
-        case 146: return move_right();
-        case 135: return move_home();
-        case 130: return move_end();
-        case 142: return page_up();
-        case 140: return page_down();
-        default: break;
-        }
-    } break;
-    case 197: {
-        switch (getch()) {
-        case 145: return move_up();
-        case 144: return move_down();
-        default: break;
-        }
-    } break;
-#endif
-    case KEY_RESIZE:
-        getmaxyx(stdscr, led.wh, led.ww);
-        while (led.cur.line-led.cur.off < 0) move_down();
-        while (led.cur.line-led.cur.off >= led.wh-1) move_up();
-        led.cur.sel = led.cur.cur;
-        break;
     case CTRL('q'):
         exit_program();
         break;
@@ -796,7 +753,12 @@ static void _update(void) {
         [MODE_REPLACE] = &_update_replace,
     };
     int ch = getch();
-    return update_fns[led.mode](ch);
+    if (ch == KEY_RESIZE) {
+        getmaxyx(stdscr, led.wh, led.ww);
+        while (led.cur.line-led.cur.off < 0) move_down();
+        while (led.cur.line-led.cur.off >= led.wh-1) move_up();
+        led.cur.sel = led.cur.cur;
+    } else update_fns[led.mode](ch);
 }
 
 static void _usage(char *prg, bool extended) {
@@ -812,11 +774,11 @@ int main(int argc, char **argv) {
     char *path = NULL;
     for (int i = 1; i < argc; ++i) {
         if (!strcmp(argv[i], "-h")) _usage(argv[0], TRUE);
-        else if (!strcmp(argv[i], "-r")) led.readonly = TRUE;
+        else if (!strcmp(argv[i], "-r")) led.is_readonly = TRUE;
         else path = argv[i];
     }
     if (!path) _usage(argv[0], FALSE);
-    open_file(strdup(path), led.readonly);
+    open_file(strdup(path), led.is_readonly);
     _init_curses();
     for (;;) {
         _render_text();
