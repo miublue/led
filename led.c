@@ -357,6 +357,7 @@ static char *_casestrstr(const char *haystack, const char *needle) {
     return strstr(haystack, needle);
 }
 
+// XXX: move line to the center of the screen on find
 void find_string(char *to_find) {
     char *str = NULL;
     if ((str = _casestrstr(led.text+led.cur.cur+1, to_find))) {
