@@ -47,7 +47,7 @@ static token_t _hs_next_token(syntax_t *syntax, lexer_t *lex) {
         tok.type = LTK_LITERAL;
         do {
             int amnt = (lex->text[tok.end] == '\\')? 2 : 1;
-            LEX_INC(1);
+            LEX_INC(amnt);
         } while (lex->text[lex->cur] != match && lex->cur < lex->text_sz);
         LEX_INC(1);
         return tok;

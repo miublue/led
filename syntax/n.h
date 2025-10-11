@@ -9,7 +9,7 @@ static const char *_N_EXTENSIONS[] = {".n", NULL};
 static const char *_N_KEYWORDS[] = {
     "if", "else", "while", "break", "fun",
     "return", "extern", "inline", "struct",
-    "char", "int", "ptr", "null",
+    "char", "int", "ptr", "null", "var",
     NULL,
 };
 
