@@ -173,8 +173,11 @@ void open_file(char *path, bool is_readonly) {
     led.action = -1;
     input_reset(&led.input);
     led.file = path;
-    // try creating file if it cannot 'stat' it, exit if that also fails
-    if (stat(path, &stbuf) != 0 && !(file = fopen(path, "w+"))) goto open_file_fail;
+    if (stat(path, &stbuf) != 0) {
+        // try creating file if it cannot stat it, exit if that also fails
+        if (!(file = fopen(path, "w+"))) goto open_file_fail;
+        if (stat(path, &stbuf) != 0) goto open_file_fail;
+    }
     if (is_readonly || !(stbuf.st_mode & S_IWUSR)) led.is_readonly = TRUE;
     if (!file) file = fopen(path, "r");
     fseek(file, 0, SEEK_END);
