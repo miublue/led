@@ -17,7 +17,7 @@ typedef struct cursor_t {
     // (so maybe we could have multiple cursors later?)
 } cursor_t;
 
-enum { MODE_NONE, MODE_FIND, MODE_GOTO, MODE_OPEN, MODE_REPLACE };
+enum { MODE_NONE, MODE_EXIT, MODE_FIND, MODE_GOTO, MODE_OPEN, MODE_REPLACE };
 
 typedef struct {
     enum { ACTION_INSERT, ACTION_DELETE, ACTION_BACKSPACE } type;

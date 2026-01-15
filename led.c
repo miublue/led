@@ -14,7 +14,8 @@ static struct {
     size_t text_sz, text_alloc;
     size_t lines_sz, lines_alloc;
     size_t actions_sz, actions_alloc;
-    int mode, action, is_undo, is_readonly, ww, wh;
+    int mode, action, last_change, ww, wh;
+    int is_undo, is_readonly;
     cursor_t cur;
     char *text, *file;
     line_t *lines;
@@ -170,7 +171,7 @@ void open_file(char *path, bool is_readonly) {
     led.cur = (cursor_t) {0};
     led.mode = MODE_NONE;
     led.is_undo = led.is_readonly = FALSE;
-    led.action = -1;
+    led.action = led.last_change = -1;
     input_reset(&led.input);
     led.file = path;
     if (stat(path, &stbuf) != 0) {
@@ -197,6 +198,7 @@ open_file_fail:
 
 void write_file(char *path) {
     if (led.is_readonly) return;
+    led.last_change = led.action;
     if (!path) path = led.file;
     FILE *file = fopen(path, "w");
     fwrite(led.text, 1, led.text_sz, file);
@@ -523,6 +525,7 @@ static void _render_text(void) {
 
 static inline char *_mode_to_cstr(void) {
     switch (led.mode) {
+    case MODE_EXIT: return "File has been modified, exit anyway (y/n)? ";
     case MODE_FIND: return "Find: ";
     case MODE_GOTO: return "Goto: ";
     case MODE_OPEN: return "Open: ";
@@ -599,6 +602,12 @@ static void _update_replace(int ch) {
     input_update(&led.input, ch);
 }
 
+static void _update_exit(int ch) {
+    if (strchr("Yy\n", ch) || ch == CTRL('q')) exit_program();
+    led.mode = MODE_NONE;
+    return;
+}
+
 static void _update_find(int ch) {
     if (_update_none(ch)) return;
     if (ch == '\n' || ch == CTRL('f') || ch == CTRL('n')) {
@@ -632,7 +641,12 @@ static void _update_insert(int ch) {
     // XXX: configurable keys
     switch (ch) {
     case CTRL('q'):
-        exit_program();
+        if (led.last_change != led.action) {
+            led.mode = MODE_EXIT;
+            input_reset(&led.input);
+        } else {
+            exit_program();
+        }
         break;
     case CTRL('s'):
         write_file(led.file);
@@ -751,6 +765,7 @@ static void _update_insert(int ch) {
 static void _update(void) {
     void (*update_fns[])(int) = {
         [MODE_NONE]    = &_update_insert,
+        [MODE_EXIT]    = &_update_exit,
         [MODE_FIND]    = &_update_find,
         [MODE_GOTO]    = &_update_goto,
         [MODE_OPEN]    = &_update_open,
