@@ -481,7 +481,7 @@ static inline bool _is_selected(int i) {
     return (is_selecting() && i >= sel.start && i <= sel.end);
 }
 
-static void _render_line(int l, int off) {
+static void _render_line(int l, int off, int lineoff) {
     line_t line = led.lines[l];
     int sz = off;
     for (int i = line.start; i <= line.end; ++i) {
@@ -498,7 +498,7 @@ static void _render_line(int l, int off) {
         } else sz++;
         attroff(attr);
     }
-    if (CFG_LINENUMBER) mvprintw(l-led.cur.off, 0, " %*d ", off-2, l+1);
+    if (CFG_LINENUMBER) mvprintw(l-led.cur.off, 0, " %*d ", lineoff, l+1);
 }
 
 static inline int _calculate_line_size(void) {
@@ -510,16 +510,16 @@ static inline int _calculate_line_size(void) {
 
 static void _render_text(void) {
     erase();
-    int cur_off = _calculate_line_size(), off = 0;
+    int cur_off = _calculate_line_size(), lineoff = 0, off = 0;
     if (CFG_LINENUMBER) {
         char linenu[16];
-        sprintf(linenu, " %ld ", led.lines_sz);
-        off = strlen(linenu);
+        sprintf(linenu, "%ld", led.lines_sz);
+        off = 2+(lineoff = strlen(linenu));
     }
     if (cur_off+off > led.ww-2) off = (led.ww-2)-cur_off;
     for (int i = led.cur.off; i < led.cur.off+led.wh-1; ++i) {
         if (i >= led.lines_sz) break;
-        _render_line(i, off);
+        _render_line(i, off, lineoff);
     }
 }
 
