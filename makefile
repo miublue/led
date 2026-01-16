@@ -6,7 +6,7 @@ all:
 
 install: all
 	mkdir -p ${PREFIX}/bin
-	install led ${PREFIX}/bin
+	install -s led ${PREFIX}/bin
 
 uninstall:
 	rm ${PREFIX}/bin/led
