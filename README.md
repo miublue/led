@@ -1,12 +1,14 @@
-# led-minimal
-Stripped down version of led.
+<h1 align="center">Led</h1>
+<p align="center">Tiny ncurses text editor.</p>
+<img align="center" src="./img.png"/>
+
+This is the stripped down version of led. See main branch for the buggier version.
 
 ## Installation
 Compile with:
-```sh
-make install
-```
 
-## Screenshots
-![led editing this README](https://i.imgur.com/zEL5Ba1.png)
+    make install
+
+## Configuration
+* Simply edit `config.h` and recompile.
 
