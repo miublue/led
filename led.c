@@ -498,7 +498,7 @@ static void _render_line(int l, int off) {
         } else sz++;
         attroff(attr);
     }
-    if (CFG_LINENUMBER) mvprintw(l-led.cur.off, 0, " %d ", l+1);
+    if (CFG_LINENUMBER) mvprintw(l-led.cur.off, 0, "%*d ", off-1, l+1);
 }
 
 static inline int _calculate_line_size(void) {
@@ -513,7 +513,7 @@ static void _render_text(void) {
     int cur_off = _calculate_line_size(), off = 0;
     if (CFG_LINENUMBER) {
         char linenu[16];
-        sprintf(linenu, " %ld ", led.lines_sz);
+        sprintf(linenu, "%ld ", led.lines_sz);
         off = strlen(linenu);
     }
     if (cur_off+off > led.ww-2) off = (led.ww-2)-cur_off;
