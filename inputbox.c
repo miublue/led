@@ -53,6 +53,16 @@ static inline void _input_remove_prev_word(inputbox_t *ib) {
 
 void input_update(inputbox_t *ib, int key) {
     switch (key) {
+#ifdef _USE_MTM
+    case 200:
+        switch (getch()) {
+        default: break;
+        case 144: _input_remove_next_word(ib); break;
+        case 170: _input_prev_word(ib); break;
+        case 185: _input_next_word(ib); break;
+        }
+        break;
+#endif
     case KEY_RESIZE: break;
     case KEY_LEFT:
         if (ib->pos > 0) --ib->pos;

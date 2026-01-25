@@ -640,6 +640,38 @@ FUPDATE(_update_open, open_file(strndup(led.input.text, led.input.text_sz), led.
 static void _update_insert(int ch) {
     // XXX: configurable keys
     switch (ch) {
+#ifdef _USE_MTM
+    case 197:
+        switch (getch()) {
+        default: break;
+        case 144: return move_down();
+        case 145: return move_up();
+        }
+        break;
+    case 198:
+        switch (getch()) {
+        default: break;
+        case 130: return move_end();
+        case 135: return move_home();
+        case 137: return move_left();
+        case 140: return page_down();
+        case 142: return page_up();
+        case 146: return move_right();
+        }
+        break;
+    case 200:
+        switch (getch()) {
+        default: break;
+        case 144: remove_next_word(); break;
+        case 155: goto_line(led.lines_sz); break;
+        case 160: goto_line(1); break;
+        case 170: move_prev_word(); break;
+        case 171: return move_prev_word();
+        case 185: move_next_word(); break;
+        case 186: return move_next_word();
+        }
+        break;
+#endif
     case CTRL('q'):
         if (led.last_change != led.action) {
             led.mode = MODE_EXIT;
