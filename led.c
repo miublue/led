@@ -15,6 +15,7 @@ static struct {
     size_t lines_sz, lines_alloc;
     size_t actions_sz, actions_alloc;
     int mode, action, last_change, ww, wh;
+    int cur_x, cur_y;
     int is_undo, is_readonly;
     cursor_t cur;
     char *text, *file;
@@ -138,7 +139,6 @@ static void _init_curses(void) {
     initscr();
     raw();
     noecho();
-    curs_set(0);
     keypad(stdscr, TRUE);
     getmaxyx(stdscr, led.wh, led.ww);
 }
@@ -486,7 +486,11 @@ static void _render_line(int l, int off, int lineoff) {
     int sz = off;
     for (int i = line.start; i <= line.end; ++i) {
         int attr = 0;
-        if (led.cur.cur == i || _is_selected(i)) attr = A_REVERSE;
+        if (led.cur.cur == i) {
+            led.cur_x = i - line.start + off;
+            led.cur_y = l-led.cur.off;
+        }
+        if (_is_selected(i)) attr = A_REVERSE;
         attron(attr);
         mvprintw(l-led.cur.off, sz, "%c", isspace(led.text[i])? ' ':led.text[i]);
         if (led.text[i] == '\t') {
@@ -832,8 +836,11 @@ int main(int argc, char **argv) {
     open_file(strdup(path), led.is_readonly);
     _init_curses();
     for (;;) {
+        curs_set(0);
         _render_text();
         _render_status();
+        if (!is_selecting()) curs_set(1);
+        move(led.cur_y, led.cur_x);
         _update();
     }
     _quit_curses();
