@@ -487,7 +487,7 @@ static void _render_line(int l, int off, int lineoff) {
     for (int i = line.start; i <= line.end; ++i) {
         int attr = 0;
         if (led.cur.cur == i) {
-            led.cur_x = i - line.start + off;
+            led.cur_x = sz;
             led.cur_y = l-led.cur.off;
         }
         if (_is_selected(i)) attr = A_REVERSE;
