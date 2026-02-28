@@ -1,4 +1,4 @@
-<h1 align="center">Led</h1>
+<h1 align="center">led</h1>
 <p align="center">Tiny ncurses text editor.</p>
 <img align="center" src="./img.png"/>
 
