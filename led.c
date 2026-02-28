@@ -544,16 +544,26 @@ static inline char *_mode_to_cstr(void) {
 
 static void _render_status(void) {
     char status[ALLOC_SIZE] = {0};
+    int attr = A_NORMAL;
+#if CFG_INVERTSTATUS
+    attr = A_REVERSE;
+    attron(attr);
+    memset(status, ' ', led.ww);
+    mvprintw(led.wh-1, 0, "%s", status);
+    attroff(attr);
+#endif
     sprintf(status, " %s %d %d:%ld %s ",
         led.is_readonly? "[RO]" : "",
         led.cur.cur-led.lines[led.cur.line].start+1,
         led.cur.line+1, led.lines_sz, led.file);
+    attron(attr);
     mvprintw(led.wh-1, led.ww-strlen(status), "%s", status);
     if (led.mode != MODE_NONE) {
         char *astr = _mode_to_cstr();
         mvprintw(led.wh-1, 0, "%s", astr);
-        input_render(&led.input, strlen(astr), led.wh-1, led.ww-strlen(astr));
+        input_render(&led.input, strlen(astr), led.wh-1, led.ww-strlen(astr), CFG_INVERTSTATUS? A_NORMAL : A_REVERSE);
     }
+    attroff(attr);
 }
 
 static void _find_next(inputbox_t input) {
