@@ -2,6 +2,7 @@ CC = tcc
 LIBS = -lncurses
 PREFIX = /usr/local
 CFLAGS = -Wall -Werror
+USEMTM = 1
 
 ifdef USEMTM
 	CFLAGS += -D_USE_MTM

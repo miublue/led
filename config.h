@@ -4,7 +4,7 @@
 #define CFG_EXPANDTAB    TRUE
 #define CFG_TABWIDTH     4
 #define CFG_IGNORECASE   TRUE
-#define CFG_LINENUMBER   TRUE
+#define CFG_LINENUMBER   FALSE
 #define CFG_INVERTSTATUS TRUE
 
 #endif
