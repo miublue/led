@@ -2,7 +2,14 @@
 <p align="center">Tiny ncurses text editor.</p>
 <img align="center" src="./img.png"/>
 
-This is the stripped down version of led. See main branch for the buggier version.
+Led is tiny, surprisingly fast, and not a clone of either `vi` nor `emacs`.
+
+## Features
+It only has the bare minimum expected of a text editor:
+* Clipboard support with `xsel`;
+* Simple search and replace;
+* Jump to line;
+* Undo and redo;
 
 ## Installation
 Compile with:
@@ -11,4 +18,9 @@ Compile with:
 
 ## Configuration
 * Simply edit `config.h` and recompile.
+
+## Featuresn't
+* No runtime configuration;
+* No syntax highlighting;
+* Only supports ascii;
 
