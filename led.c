@@ -12,6 +12,7 @@
 // ABANDON ALL HOPE, YE WHO ENTER HERE
 
 static struct {
+    const char *prgname;
     size_t text_sz, text_alloc;
     size_t lines_sz, lines_alloc;
     size_t actions_sz, actions_alloc;
@@ -141,12 +142,22 @@ static void _init_curses(void) {
     raw();
     noecho();
     keypad(stdscr, TRUE);
-    getmaxyx(stdscr, led.wh, led.ww);
 }
 
 static void _quit_curses(void) {
     endwin();
     curs_set(1);
+}
+
+static void _get_term_size(void) {
+    getmaxyx(stdscr, led.wh, led.ww);
+    // XXX: maybe save a backup of the file before exitting
+    if (led.ww < MIN_TERM_WIDTH || led.wh < MIN_TERM_HEIGHT) {
+        _quit_curses();
+        fprintf(stderr, "error: %s requires minimal terminal size of %dx%d\n",
+            led.prgname, MIN_TERM_WIDTH, MIN_TERM_HEIGHT);
+        exit(1);
+    }
 }
 
 void exit_program(void) {
@@ -821,15 +832,15 @@ static void _update(void) {
     };
     int ch = getch();
     if (ch == KEY_RESIZE) {
-        getmaxyx(stdscr, led.wh, led.ww);
+        _get_term_size();
         while (led.cur.line-led.cur.off < 0) move_down();
         while (led.cur.line-led.cur.off >= led.wh-1) move_up();
         led.cur.sel = led.cur.cur;
     } else update_fns[led.mode](ch);
 }
 
-static void _usage(char *prg, bool extended) {
-    fprintf(stderr, "usage: %s [-r|-h] <file>\n", prg);
+static void _usage(bool extended) {
+    fprintf(stderr, "usage: %s [-h|-r] <file>\n", led.prgname);
     if (!extended) goto e;
     fprintf(stderr, "    -h    show this help and exit\n");
     fprintf(stderr, "    -r    open in read-only mode\n");
@@ -837,16 +848,18 @@ e:  exit(0);
 }
 
 int main(int argc, char **argv) {
-    if (argc < 2) _usage(argv[0], FALSE);
+    led.prgname = argv[0];
+    if (argc < 2) _usage(FALSE);
     char *path = NULL;
     for (int i = 1; i < argc; ++i) {
-        if (!strcmp(argv[i], "-h")) _usage(argv[0], TRUE);
+        if (!strcmp(argv[i], "-h")) _usage(TRUE);
         else if (!strcmp(argv[i], "-r")) led.is_readonly = TRUE;
         else path = argv[i];
     }
-    if (!path) _usage(argv[0], FALSE);
+    if (!path) _usage(FALSE);
     open_file(strdup(path), led.is_readonly);
     _init_curses();
+    _get_term_size();
     for (;;) {
         curs_set(0);
         _render_text();

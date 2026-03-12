@@ -8,6 +8,8 @@
 #define ALLOC_SIZE 512
 #define MIN(a, b) ((a) < (b)? (a) : (b))
 #define MAX(a, b) ((a) > (b)? (a) : (b))
+#define MIN_TERM_WIDTH 30
+#define MIN_TERM_HEIGHT 5
 
 typedef struct line_t selection_t;
 typedef struct line_t { uint32_t start, end; } line_t;
