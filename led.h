@@ -2,11 +2,12 @@
 #define __LED_H
 
 #include <stdlib.h>
-#include "inputbox.h"
 
 #define LENGTH(x) (sizeof(x)/sizeof((x)[0]))
 #define CTRL(c) ((c) & 0x1f)
 #define ALLOC_SIZE 512
+#define MIN(a, b) ((a) < (b)? (a) : (b))
+#define MAX(a, b) ((a) > (b)? (a) : (b))
 
 typedef struct line_t selection_t;
 typedef struct line_t { uint32_t start, end; } line_t;

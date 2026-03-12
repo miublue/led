@@ -4,9 +4,10 @@
 #include <string.h>
 #include <ctype.h>
 #include <ncurses.h>
-#include "inputbox.h"
 #include "led.h"
 #include "config.h"
+#define INPUTBOX_IMPL
+#include "inputbox.h"
 
 // ABANDON ALL HOPE, YE WHO ENTER HERE
 
@@ -559,9 +560,10 @@ static void _render_status(void) {
     attron(attr);
     mvprintw(led.wh-1, led.ww-strlen(status), "%s", status);
     if (led.mode != MODE_NONE) {
-        char *astr = _mode_to_cstr();
+        const char *astr = _mode_to_cstr();
         mvprintw(led.wh-1, 0, "%s", astr);
-        input_render(&led.input, strlen(astr), led.wh-1, led.ww-strlen(astr), CFG_INVERTSTATUS? A_NORMAL : A_REVERSE);
+        const int cap = strlen(astr)+strlen(status), at = CFG_INVERTSTATUS? A_NORMAL : A_REVERSE;
+        input_render(&led.input, strlen(astr), led.wh-1, led.ww-cap, at);
     }
     attroff(attr);
 }

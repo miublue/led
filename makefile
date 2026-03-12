@@ -8,7 +8,7 @@ ifdef USEMTM
 endif
 
 all:
-	${CC} -O2 -o led *.c -I. ${LIBS} ${CFLAGS}
+	${CC} -O2 -o led led.c -I. ${LIBS} ${CFLAGS}
 
 install: all
 	mkdir -p ${PREFIX}/bin
