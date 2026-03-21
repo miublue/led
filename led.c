@@ -12,6 +12,10 @@
 // ABANDON ALL HOPE, YE WHO ENTER HERE
 
 static struct {
+    int ignore_case, show_numbers, expand_tabs, tab_width;
+} opts;
+
+static struct {
     const char *prgname;
     size_t text_sz, text_alloc;
     size_t lines_sz, lines_alloc;
@@ -347,9 +351,9 @@ void indent(void) {
     int cur = led.cur.cur, add = 1;
     led.cur.cur = led.lines[led.cur.line].start;
     // XXX: some filetype detection would be pretty handy later on
-    if (!CFG_EXPANDTAB || !strcasecmp(led.file, "makefile"))
+    if (!opts.expand_tabs || !strcasecmp(led.file, "makefile"))
         insert_char('\t');
-    else for (add = 0; add < CFG_TABWIDTH; ++add)
+    else for (add = 0; add < opts.tab_width; ++add)
         insert_char(' ');
     led.cur.cur = cur + add;
     if (led.cur.cur > led.lines[led.cur.line].end) led.cur.cur = led.lines[led.cur.line].end;
@@ -362,7 +366,7 @@ void unindent(void) {
     led.cur.cur = led.lines[led.cur.line].start;
     if (led.text[led.cur.cur] == '\t')
         remove_char(FALSE);
-    else for (rem = 0; rem < CFG_TABWIDTH && led.text[led.cur.cur] == ' '; ++rem)
+    else for (rem = 0; rem < opts.tab_width && led.text[led.cur.cur] == ' '; ++rem)
         remove_char(FALSE);
     led.cur.cur = cur - rem;
     if (led.cur.cur > led.lines[led.cur.line].end) led.cur.cur = led.lines[led.cur.line].end;
@@ -370,7 +374,7 @@ void unindent(void) {
 }
 
 static char *_casestrstr(const char *haystack, const char *needle) {
-    if (CFG_IGNORECASE) return strcasestr(haystack, needle);
+    if (opts.ignore_case) return strcasestr(haystack, needle);
     return strstr(haystack, needle);
 }
 
@@ -507,27 +511,27 @@ static void _render_line(int l, int off, int lineoff) {
         mvprintw(l-led.cur.off, sz, "%c", isspace(led.text[i])? ' ':led.text[i]);
         if (led.text[i] == '\t') {
             if (_is_selected(i)) {
-                for (int j = 0; j < CFG_TABWIDTH; ++j)
+                for (int j = 0; j < opts.tab_width; ++j)
                     mvprintw(l-led.cur.off, sz+j, " ");
             }
-            sz += CFG_TABWIDTH;
+            sz += opts.tab_width;
         } else sz++;
         attroff(attr);
     }
-    if (CFG_LINENUMBER) mvprintw(l-led.cur.off, 0, " %*d ", lineoff, l+1);
+    if (opts.show_numbers) mvprintw(l-led.cur.off, 0, " %*d ", lineoff, l+1);
 }
 
 static inline int _calculate_line_size(void) {
     int sz = 0;
     for (int i = led.lines[led.cur.line].start; i < led.cur.cur; ++i)
-        sz += (led.text[i] == '\t')? CFG_TABWIDTH : 1;
+        sz += (led.text[i] == '\t')? opts.tab_width : 1;
     return sz;
 }
 
 static void _render_text(void) {
     erase();
     int cur_off = _calculate_line_size(), lineoff = 0, off = 0;
-    if (CFG_LINENUMBER) {
+    if (opts.show_numbers) {
         char linenu[16];
         sprintf(linenu, "%ld", led.lines_sz);
         off = 2+(lineoff = strlen(linenu));
@@ -840,10 +844,14 @@ static void _update(void) {
 }
 
 static void _usage(bool extended) {
-    fprintf(stderr, "usage: %s [-h|-r] <file>\n", led.prgname);
+    fprintf(stderr, "usage: %s [-h|-r|-c|-l|-e|-t num] <file>\n", led.prgname);
     if (!extended) goto e;
-    fprintf(stderr, "    -h    show this help and exit\n");
-    fprintf(stderr, "    -r    open in read-only mode\n");
+    fprintf(stderr, "    -h       show this help and exit\n");
+    fprintf(stderr, "    -r       open in read-only mode\n");
+    fprintf(stderr, "    -c       search ignores case\n");
+    fprintf(stderr, "    -l       enable drawing line numbers\n");
+    fprintf(stderr, "    -e       will expand tabs to spaces\n");
+    fprintf(stderr, "    -t num   will indent using 'num' spaces\n");
 e:  exit(0);
 }
 
@@ -851,9 +859,18 @@ int main(int argc, char **argv) {
     led.prgname = argv[0];
     if (argc < 2) _usage(FALSE);
     char *path = NULL;
+    opts.ignore_case = CFG_IGNORECASE;
+    opts.show_numbers = CFG_LINENUMBER;
+    opts.expand_tabs = CFG_EXPANDTAB;
+    opts.tab_width = CFG_TABWIDTH;
     for (int i = 1; i < argc; ++i) {
         if (!strcmp(argv[i], "-h")) _usage(TRUE);
-        else if (!strcmp(argv[i], "-r")) led.is_readonly = TRUE;
+        else if (!strcmp(argv[i], "-r")) led.is_readonly   = TRUE;
+        else if (!strcmp(argv[i], "-c")) opts.ignore_case  = !opts.ignore_case;
+        else if (!strcmp(argv[i], "-l")) opts.show_numbers = !opts.show_numbers;
+        else if (!strcmp(argv[i], "-e")) opts.expand_tabs  = !opts.expand_tabs;
+        else if (!strcmp(argv[i], "-t") && i+1 < argc) opts.tab_width = atoi(argv[++i]);
+        else if (argv[i][0] == '-') _usage(TRUE);
         else path = argv[i];
     }
     if (!path) _usage(FALSE);
