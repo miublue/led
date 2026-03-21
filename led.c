@@ -848,10 +848,10 @@ static void _usage(bool extended) {
     if (!extended) goto e;
     fprintf(stderr, "    -h       show this help and exit\n");
     fprintf(stderr, "    -r       open in read-only mode\n");
-    fprintf(stderr, "    -c       search ignores case\n");
-    fprintf(stderr, "    -l       enable drawing line numbers\n");
-    fprintf(stderr, "    -e       will expand tabs to spaces\n");
-    fprintf(stderr, "    -t num   will indent using 'num' spaces\n");
+    fprintf(stderr, "    -c       toggle search ignores case\n");
+    fprintf(stderr, "    -l       toggle drawing line numbers\n");
+    fprintf(stderr, "    -e       toggle expanding tabs to spaces\n");
+    fprintf(stderr, "    -t num   indent using 'num' spaces\n");
 e:  exit(0);
 }
 
