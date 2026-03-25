@@ -19,7 +19,7 @@ struct cursor {
     // (so maybe we could have multiple cursors later?)
 };
 
-enum { MODE_NONE, MODE_EXIT, MODE_FIND, MODE_GOTO, MODE_OPEN, MODE_REPLACE, MODE_CONFIRM };
+enum { MODE_NONE, MODE_EXIT, MODE_FIND, MODE_GOTO, MODE_OPEN, MODE_REPLACE };
 
 struct action {
     enum { ACTION_INSERT, ACTION_DELETE, ACTION_BACKSPACE } type;
@@ -37,7 +37,7 @@ struct buffer {
     struct action *actions;
 };
 
-void open_file(struct buffer *buf, char *path, bool readonly);
+void open_file(char *path, bool readonly);
 void close_file(struct buffer *buf);
 void write_file(struct buffer *buf, char *path);
 void exit_program(void);

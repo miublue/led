@@ -17,7 +17,7 @@ static struct {
 
 static struct {
     char *prgname;
-    int mode, next_mode, ww, wh, cur_x, cur_y, num_buffers, max_buffers;
+    int mode, ww, wh, cur_x, cur_y, num_buffers, max_buffers;
     struct buffer *buffers, *cur_buffer;
     inputbox_t input, input_find;
 } led;
@@ -158,18 +158,7 @@ static void _get_term_size(void) {
 static struct buffer *_new_buf(void) {
     if (led.num_buffers >= led.max_buffers)
         led.buffers = realloc(led.buffers, (led.max_buffers *= 1.5)*sizeof(struct buffer));
-    return &led.buffers[led.num_buffers++];
-}
-
-void exit_program(void) {
-    _quit_curses();
-    exit(0);
-}
-
-void open_file(struct buffer *buf, char *path, bool is_readonly) {
-    struct stat stbuf;
-    FILE *file = NULL;
-    led.cur_buffer = buf;
+    struct buffer *buf = &led.buffers[led.num_buffers++];
     buf->text = NULL;
     buf->lines = malloc((buf->lines_cap = ALLOC_SIZE)*sizeof(struct line));
     buf->actions = malloc((buf->actions_cap = ALLOC_SIZE)*sizeof(struct action));
@@ -177,9 +166,20 @@ void open_file(struct buffer *buf, char *path, bool is_readonly) {
     buf->cur = (struct cursor) {0};
     buf->is_undo = buf->is_readonly = FALSE;
     buf->action = buf->last_change = -1;
-    led.mode = led.next_mode = MODE_NONE;
-    input_reset(&led.input);
+    return buf;
+}
+
+void exit_program(void) {
+    _quit_curses();
+    exit(0);
+}
+
+void open_file(char *path, bool is_readonly) {
+    struct stat stbuf;
+    FILE *file = NULL;
+    struct buffer *buf = led.cur_buffer = _new_buf();
     buf->name = path;
+    led.mode = MODE_NONE;
     if (stat(path, &stbuf) != 0) {
         // try creating file if it cannot stat it, exit if that also fails
         if (!(file = fopen(path, "w+"))) goto open_file_fail;
@@ -208,7 +208,7 @@ void close_file(struct buffer *buf) {
     if (buf->lines) free(buf->lines);
     if (buf->actions) _free_actions(buf);
     if (--led.num_buffers == 0) exit_program();
-    led.mode = led.next_mode = MODE_NONE;
+    led.mode = MODE_NONE;
     for (struct buffer *b = buf; b != &led.buffers[led.num_buffers]; ++b) *b = *(b+1);
     if (led.cur_buffer == &led.buffers[led.num_buffers]) --led.cur_buffer;
 }
@@ -541,10 +541,10 @@ static void _render_text(struct buffer *buf) {
 static inline char *_mode_to_cstr(void) {
     static char str[ALLOC_SIZE] = {0};
     switch (led.mode) {
+    case MODE_EXIT: return "File has been modified, close anyway? (y/n)";
     case MODE_FIND: return "Find: ";
     case MODE_GOTO: return "Goto: ";
     case MODE_OPEN: return "Open: ";
-    case MODE_CONFIRM: return "File has been modified, continue (y/n)?";
     case MODE_REPLACE: {
         sprintf(str, "Replace(%.*s): ", led.input_find.text_sz, led.input_find.text);
         return str;
@@ -575,7 +575,7 @@ static void _render_status(void) {
         const char *astr = _mode_to_cstr();
         mvprintw(led.wh-1, 0, "%s", astr);
         const int cap = strlen(astr)+strlen(status), at = CFG_INVERTSTATUS? A_NORMAL : A_REVERSE;
-        if (led.mode != MODE_CONFIRM)
+        if (led.mode != MODE_EXIT)
             input_render(&led.input, strlen(astr), led.wh-1, led.ww-cap, at);
     }
     attroff(attr);
@@ -631,16 +631,10 @@ static void _update_replace(struct buffer *buf, int ch) {
     input_update(&led.input, ch);
 }
 
-static void _update_confirm(struct buffer *buf, int ch) {
-    led.mode = (strchr("Yy\n", ch))? led.next_mode : MODE_NONE;
-    led.next_mode = MODE_NONE;
+static void _update_exit(struct buffer *buf, int ch) {
+    if (strchr("Yy\n", ch) || ch == CTRL('q')) close_file(buf);
+    led.mode = MODE_NONE;
     return;
-}
-
-static void _confirm_mode(struct buffer *buf, int mode) {
-    if (buf->last_change != buf->action) led.mode = MODE_CONFIRM, led.next_mode = mode;
-    else led.mode = mode, led.next_mode = MODE_NONE;
-    input_reset(&led.input);
 }
 
 static void _update_find(struct buffer *buf, int ch) {
@@ -680,7 +674,7 @@ static void _update_open(struct buffer *buf, int ch) {
                 return;
             }
         }
-        open_file(_new_buf(), name, opts.is_readonly);
+        open_file(name, opts.is_readonly);
         return;
     }
     input_update(&led.input, ch);
@@ -722,9 +716,13 @@ static void _update_insert(struct buffer *buf, int ch) {
         break;
 #endif
     case CTRL('q'):
-        _confirm_mode(buf, MODE_EXIT); break;
+        if (buf->last_change != buf->action) led.mode = MODE_EXIT;
+        else close_file(buf);
+        return;
     case CTRL('o'):
-        _confirm_mode(buf, MODE_OPEN); break;
+        led.mode = MODE_OPEN;
+        input_reset(&led.input);
+        break;
     case CTRL('s'):
         write_file(buf, buf->name); break;
     case CTRL('z'):
@@ -839,14 +837,13 @@ static void _update_insert(struct buffer *buf, int ch) {
 }
 
 static void _update(struct buffer *buf) {
-    if (led.mode == MODE_EXIT) return close_file(buf);
     void (*update_fns[])(struct buffer*, int) = {
+        [MODE_EXIT]    = &_update_exit,
         [MODE_NONE]    = &_update_insert,
         [MODE_FIND]    = &_update_find,
         [MODE_GOTO]    = &_update_goto,
         [MODE_OPEN]    = &_update_open,
         [MODE_REPLACE] = &_update_replace,
-        [MODE_CONFIRM] = &_update_confirm,
     };
     int ch = getch();
     if (ch == KEY_RESIZE) {
@@ -888,7 +885,7 @@ int main(int argc, char **argv) {
         else if (!strcmp(argv[i], "-e")) opts.expand_tabs  = !opts.expand_tabs;
         else if (!strcmp(argv[i], "-t") && i+1 < argc) opts.tab_width = atoi(argv[++i]);
         else if (argv[i][0] == '-') _usage(TRUE);
-        else open_file(_new_buf(), strdup(argv[i]), opts.is_readonly);
+        else open_file(strdup(argv[i]), opts.is_readonly);
     }
     if (!led.num_buffers) _usage(FALSE);
     _init_curses();
