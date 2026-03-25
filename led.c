@@ -145,53 +145,19 @@ static void _quit_curses(void) {
     curs_set(1);
 }
 
-static struct buffer *_new_buf(void) {
+struct buffer *create_buffer(char *name) {
     if (led.num_buffers >= led.max_buffers)
         led.buffers = realloc(led.buffers, (led.max_buffers *= 1.5)*sizeof(struct buffer));
     struct buffer *buf = &led.buffers[led.num_buffers++];
     buf->text = NULL;
+    buf->name = name;
     buf->lines = malloc((buf->lines_cap = ALLOC_SIZE)*sizeof(struct line));
     buf->actions = malloc((buf->actions_cap = ALLOC_SIZE)*sizeof(struct action));
-    buf->text_sz = buf->lines_sz = buf->actions_sz = 0;
+    buf->text_sz = buf->text_cap = buf->lines_sz = buf->actions_sz = 0;
     buf->cur = (struct cursor) {0};
     buf->is_undo = buf->is_readonly = FALSE;
     buf->action = buf->last_change = -1;
     return buf;
-}
-
-void exit_program(void) {
-    for (led.cur_buffer = &led.buffers[0]; led.num_buffers != 0;)
-        close_buffer(led.cur_buffer);
-    _quit_curses();
-    exit(0);
-}
-
-void open_file(char *path, bool is_readonly) {
-    struct stat stbuf;
-    FILE *file = NULL;
-    struct buffer *buf = led.cur_buffer = _new_buf();
-    buf->name = path;
-    led.mode = MODE_NONE;
-    if (stat(path, &stbuf) != 0) {
-        // try creating file if it cannot stat it, exit if that also fails
-        if (!(file = fopen(path, "w+"))) goto open_file_fail;
-        if (stat(path, &stbuf) != 0) goto open_file_fail;
-    }
-    if (is_readonly || !(stbuf.st_mode & S_IWUSR)) buf->is_readonly = TRUE;
-    if (!file) file = fopen(path, "r");
-    fseek(file, 0, SEEK_END);
-    buf->text_cap = ALLOC_SIZE+(buf->text_sz = ftell(file));
-    rewind(file);
-    buf->text = calloc(1, buf->text_cap);
-    if (!buf->text) goto open_file_fail;
-    if (fread(buf->text, 1, buf->text_sz, file) != buf->text_sz) goto open_file_fail;
-    _count_lines(buf);
-    fclose(file);
-    return;
-open_file_fail:
-    if (file) fclose(file);
-    fprintf(stderr, "error: could not open file '%s'\n", path);
-    exit_program();
 }
 
 void close_buffer(struct buffer *buf) {
@@ -203,6 +169,40 @@ void close_buffer(struct buffer *buf) {
     led.mode = MODE_NONE;
     for (struct buffer *b = buf; b != &led.buffers[led.num_buffers]; ++b) *b = *(b+1);
     if (led.cur_buffer == &led.buffers[led.num_buffers]) --led.cur_buffer;
+}
+
+void exit_program(void) {
+    for (led.cur_buffer = &led.buffers[0]; led.num_buffers != 0;) close_buffer(led.cur_buffer);
+    _quit_curses();
+    exit(0);
+}
+
+void open_file(char *path, bool is_readonly) {
+    struct stat stbuf;
+    FILE *file = NULL;
+    led.cur_buffer = create_buffer(path);
+    led.mode = MODE_NONE;
+    if (stat(path, &stbuf) != 0) {
+        // try creating file if it cannot stat it, exit if that also fails
+        if (!(file = fopen(path, "w+"))) goto open_file_fail;
+        if (stat(path, &stbuf) != 0) goto open_file_fail;
+    }
+    if (!S_ISREG(stbuf.st_mode)) goto open_file_fail;
+    if (is_readonly || !(stbuf.st_mode & S_IWUSR)) led.cur_buffer->is_readonly = TRUE;
+    if (!file) file = fopen(path, "r");
+    fseek(file, 0, SEEK_END);
+    led.cur_buffer->text_cap = ALLOC_SIZE+(led.cur_buffer->text_sz = ftell(file));
+    rewind(file);
+    led.cur_buffer->text = calloc(1, led.cur_buffer->text_cap);
+    if (!led.cur_buffer->text) goto open_file_fail;
+    if (fread(led.cur_buffer->text, 1, led.cur_buffer->text_sz, file) != led.cur_buffer->text_sz) goto open_file_fail;
+    _count_lines(led.cur_buffer);
+    fclose(file);
+    return;
+open_file_fail:
+    if (file) fclose(file);
+    fprintf(stderr, "error: could not open file '%s'\n", path);
+    exit_program();
 }
 
 void write_file(struct buffer *buf, char *path) {
