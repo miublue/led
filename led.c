@@ -19,7 +19,7 @@ static struct {
     char *prgname;
     int mode, ww, wh, num_buffers, max_buffers;
     struct buffer *buffers, *cur_buffer;
-    inputbox_t input, input_find;
+    struct inputbox input, input_find;
 } led;
 
 static void _actions_append(struct buffer *buf, struct action act) {
@@ -277,22 +277,20 @@ void page_down(struct buffer *buf) {
     for (int i = 0; i < led.wh-2; ++i) move_down(buf);
 }
 
-static inline bool _is_delim(char c) {
-    return isspace(c) || !(isalnum(c) || c == '_');
-}
+#define DELIM(C) (isspace(C) || !(isalnum(C) || (C) == '_'))
 
 void move_next_word(struct buffer *buf) {
     if (buf->cur.cur+1 >= buf->text_sz) return;
-    if (_is_delim(buf->text[buf->cur.cur+1]))
-        while (buf->cur.cur < buf->text_sz-2 && _is_delim(buf->text[buf->cur.cur+1])) move_right(buf);
-    else while (buf->cur.cur < buf->text_sz-2 && !_is_delim(buf->text[buf->cur.cur+1])) move_right(buf);
+    if (DELIM(buf->text[buf->cur.cur+1]))
+        while (buf->cur.cur < buf->text_sz-2 && DELIM(buf->text[buf->cur.cur+1])) move_right(buf);
+    else while (buf->cur.cur < buf->text_sz-2 && !DELIM(buf->text[buf->cur.cur+1])) move_right(buf);
 }
 
 void move_prev_word(struct buffer *buf) {
     if (buf->cur.cur <= 1) return;
-    if (_is_delim(buf->text[buf->cur.cur-1]))
-        while (buf->cur.cur > 1 && _is_delim(buf->text[buf->cur.cur-1])) move_left(buf);
-    else while (buf->cur.cur > 1 && !_is_delim(buf->text[buf->cur.cur-1])) move_left(buf);
+    if (DELIM(buf->text[buf->cur.cur-1]))
+        while (buf->cur.cur > 1 && DELIM(buf->text[buf->cur.cur-1])) move_left(buf);
+    else while (buf->cur.cur > 1 && !DELIM(buf->text[buf->cur.cur-1])) move_left(buf);
 }
 
 // XXX: UTF-8 lmao
@@ -328,7 +326,7 @@ void remove_char(struct buffer *buf, bool backspace) {
 
 void remove_prev_word(struct buffer *buf) {
     if (buf->cur.cur == 0) return;
-    if (_is_delim(buf->text[buf->cur.cur])) move_left(buf);
+    if (DELIM(buf->text[buf->cur.cur])) move_left(buf);
     buf->cur.sel = buf->cur.cur;
     move_prev_word(buf);
     remove_selection(buf);
@@ -574,7 +572,7 @@ static void _render_status(void) {
     attroff(attr);
 }
 
-static void _find_next(struct buffer *buf, inputbox_t input) {
+static void _find_next(struct buffer *buf, struct inputbox input) {
     char *text = strndup(input.text, input.text_sz);
     find_string(buf, text);
     free(text);

@@ -7,15 +7,15 @@
 #define INPUTBOX_TEXT_SIZE 1024
 #endif
 
-typedef struct inputbox_t {
+struct inputbox {
     char text[INPUTBOX_TEXT_SIZE];
     uint16_t text_sz, pos;
-} inputbox_t;
+};
 
-void input_update(inputbox_t *ib, int key);
-void input_render(inputbox_t *ib, int x, int y, int w, int attr);
-void input_reset(inputbox_t *ib);
-void input_set(inputbox_t *ib, char *text, int sz);
+void input_update(struct inputbox *ib, int key);
+void input_render(struct inputbox *ib, int x, int y, int w, int attr);
+void input_reset(struct inputbox *ib);
+void input_set(struct inputbox *ib, char *text, int sz);
 
 #ifdef INPUTBOX_IMPL
 
@@ -24,13 +24,13 @@ void input_set(inputbox_t *ib, char *text, int sz);
 #include <ncurses.h>
 #include "inputbox.h"
 
-static inline void _input_insert_char(inputbox_t *ib, int c) {
+static inline void _input_insert_char(struct inputbox *ib, int c) {
     ib->text_sz++;
     memmove(ib->text+ib->pos+1, ib->text+ib->pos, ib->text_sz-ib->pos);
     ib->text[ib->pos++] = c;
 }
 
-static inline void _input_remove_char(inputbox_t *ib, bool backspace) {
+static inline void _input_remove_char(struct inputbox *ib, bool backspace) {
     if (backspace) {
         if (ib->pos == 0) return;
         --ib->pos;
@@ -43,21 +43,21 @@ static inline bool _input_isdelim(char c) {
     return isspace(c) || !(isalnum(c) || c == '_');
 }
 
-static inline void _input_next_word(inputbox_t *ib) {
+static inline void _input_next_word(struct inputbox *ib) {
     if (ib->pos+1 >= ib->text_sz) return;
     if (_input_isdelim(ib->text[ib->pos+1]))
         while (ib->pos < ib->text_sz-1 && _input_isdelim(ib->text[ib->pos+1])) ++ib->pos;
     else while (ib->pos < ib->text_sz-1 && !_input_isdelim(ib->text[ib->pos+1])) ++ib->pos;
 }
 
-static inline void _input_prev_word(inputbox_t *ib) {
+static inline void _input_prev_word(struct inputbox *ib) {
     if (ib->pos <= 1) return;
     if (_input_isdelim(ib->text[ib->pos-1]))
         while (ib->pos > 0 && _input_isdelim(ib->text[ib->pos-1])) --ib->pos;
     else while (ib->pos > 0 && !_input_isdelim(ib->text[ib->pos-1])) --ib->pos;
 }
 
-static inline void _input_remove_next_word(inputbox_t *ib) {
+static inline void _input_remove_next_word(struct inputbox *ib) {
     if (ib->pos >= ib->text_sz) return;
     int p = ib->pos;
     _input_next_word(ib);
@@ -65,7 +65,7 @@ static inline void _input_remove_next_word(inputbox_t *ib) {
     _input_remove_char(ib, FALSE);
 }
 
-static inline void _input_remove_prev_word(inputbox_t *ib) {
+static inline void _input_remove_prev_word(struct inputbox *ib) {
     if (ib->pos == 0) return;
     int p = ib->pos;
     _input_prev_word(ib);
@@ -73,7 +73,7 @@ static inline void _input_remove_prev_word(inputbox_t *ib) {
     if (ib->pos < ib->text_sz && !_input_isdelim(ib->text[ib->pos])) _input_remove_char(ib, FALSE);
 }
 
-void input_update(inputbox_t *ib, int key) {
+void input_update(struct inputbox *ib, int key) {
     switch (key) {
 #ifdef _USE_MTM
     case 200:
@@ -123,7 +123,7 @@ void input_update(inputbox_t *ib, int key) {
     }
 }
 
-void input_render(inputbox_t *ib, int x, int y, int w, int attr) {
+void input_render(struct inputbox *ib, int x, int y, int w, int attr) {
     char text[w];
     const int cap = (ib->text_sz < w)? ib->text_sz : w;
     const int off = (ib->pos >= w-1)? ib->pos-w+1 : 0;
@@ -135,12 +135,12 @@ void input_render(inputbox_t *ib, int x, int y, int w, int attr) {
     attroff(attr);
 }
 
-void input_reset(inputbox_t *ib) {
+void input_reset(struct inputbox *ib) {
     ib->text_sz = ib->pos = 0;
     memset(ib->text, 0, sizeof(ib->text));
 }
 
-void input_set(inputbox_t *ib, char *text, int sz) {
+void input_set(struct inputbox *ib, char *text, int sz) {
     input_reset(ib);
     ib->text_sz = ib->pos = (INPUTBOX_TEXT_SIZE < sz)? INPUTBOX_TEXT_SIZE : sz;
     memcpy(ib->text, text, ib->text_sz);
