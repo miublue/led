@@ -567,7 +567,7 @@ static void _render_status(void) {
         const char *astr = _mode_to_cstr();
         mvprintw(led.wh-1, 0, "%s", astr);
         const int s = strlen(astr), cap = s+strlen(status), at = CFG_INVERTSTATUS? A_NORMAL : A_REVERSE;
-        const int w = led.ww-cap < s? led.ww-s : led.ww-cap;
+        const int w = cap+5 > led.ww? led.ww-s : led.ww-cap;
         if (led.mode != MODE_EXIT)
             input_render(&led.input, strlen(astr), led.wh-1, w, at);
     }
