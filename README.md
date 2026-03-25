@@ -8,6 +8,7 @@ Led is tiny, surprisingly fast, and not a clone of either `vi` nor `emacs`.
 It only has the bare minimum expected of a text editor:
 * Clipboard support with `xsel`;
 * Simple search and replace;
+* Multiple buffers;
 * Jump to line;
 * Undo and redo;
 
