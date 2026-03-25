@@ -11,58 +11,67 @@
 #define MIN_TERM_WIDTH 30
 #define MIN_TERM_HEIGHT 5
 
-typedef struct line_t selection_t;
-typedef struct line_t { uint32_t start, end; } line_t;
+struct line { uint32_t start, end; };
 
-typedef struct cursor_t {
+struct cursor {
     int cur, off, line, sel;
     // XXX: maybe cursor should keep track of the text it's editing
     // (so maybe we could have multiple cursors later?)
-} cursor_t;
+};
 
 enum { MODE_NONE, MODE_EXIT, MODE_FIND, MODE_GOTO, MODE_OPEN, MODE_REPLACE, MODE_CONFIRM };
 
-typedef struct {
+struct action {
     enum { ACTION_INSERT, ACTION_DELETE, ACTION_BACKSPACE } type;
-    cursor_t cur;
-    int text_sz, text_alloc;
+    struct cursor cur;
+    int text_sz, text_cap;
     char *text;
-} action_t;
+};
 
-void open_file(char *path, bool readonly);
-void write_file(char *path);
+struct buffer {
+    char *name, *text;
+    size_t text_sz, text_cap, lines_sz, lines_cap, actions_sz, actions_cap;
+    int action, last_change, is_undo, is_readonly;
+    struct cursor cur;
+    struct line *lines;
+    struct action *actions;
+};
+
+void open_file(struct buffer *buf, char *path, bool readonly);
+void close_file(struct buffer *buf);
+void write_file(struct buffer *buf, char *path);
 void exit_program(void);
-void scroll_up(void);
-void scroll_down(void);
-void move_left(void);
-void move_right(void);
-void move_up(void);
-void move_down(void);
-void move_home(void);
-void move_end(void);
-void page_up(void);
-void page_down(void);
-void move_next_word(void);
-void move_prev_word(void);
-void insert_text(char *buf, int sz);
-void insert_char(char ch);
-void remove_text(bool backspace, int sz);
-void remove_char(bool backspace);
-void remove_next_word(void);
-void remove_prev_word(void);
-void indent(void);
-void unindent(void);
-void indent_selection(void);
-void unindent_selection(void);
-void undo_action(void);
-void redo_action(void);
-selection_t get_selection(void);
-bool is_selecting(void);
-void remove_selection(void);
-void copy_selection(void);
-void paste_text(void);
-void find_string(char *to_find);
-void replace_string(char *to_replace, char *str);
-void goto_line(long line);
+void scroll_up(struct buffer *buf);
+void scroll_down(struct buffer *buf);
+void move_left(struct buffer *buf);
+void move_right(struct buffer *buf);
+void move_up(struct buffer *buf);
+void move_down(struct buffer *buf);
+void move_home(struct buffer *buf);
+void move_end(struct buffer *buf);
+void page_up(struct buffer *buf);
+void page_down(struct buffer *buf);
+void move_next_word(struct buffer *buf);
+void move_prev_word(struct buffer *buf);
+void insert_text(struct buffer *buf, char *text, int sz);
+void insert_char(struct buffer *buf, char ch);
+void remove_text(struct buffer *buf, bool backspace, int sz);
+void remove_char(struct buffer *buf, bool backspace);
+void remove_next_word(struct buffer *buf);
+void remove_prev_word(struct buffer *buf);
+void indent(struct buffer *buf);
+void unindent(struct buffer *buf);
+void indent_selection(struct buffer *buf);
+void unindent_selection(struct buffer *buf);
+void undo_action(struct buffer *buf);
+void redo_action(struct buffer *buf);
+struct line get_selection(struct buffer *buf);
+bool is_selecting(struct buffer *buf);
+void remove_selection(struct buffer *buf);
+void copy_selection(struct buffer *buf);
+void paste_text(struct buffer *buf);
+void find_string(struct buffer *buf, char *to_find);
+void replace_string(struct buffer *buf, char *to_replace, char *str);
+void goto_line(struct buffer *buf, long line);
 
 #endif
