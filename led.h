@@ -31,14 +31,14 @@ struct action {
 struct buffer {
     char *name, *text;
     size_t text_sz, text_cap, lines_sz, lines_cap, actions_sz, actions_cap;
-    int action, last_change, is_undo, is_readonly;
+    int action, last_change, is_undo, is_readonly, cur_x, cur_y;
     struct cursor cur;
     struct line *lines;
     struct action *actions;
 };
 
 void open_file(char *path, bool readonly);
-void close_file(struct buffer *buf);
+void close_buffer(struct buffer *buf);
 void write_file(struct buffer *buf, char *path);
 void exit_program(void);
 void scroll_up(struct buffer *buf);

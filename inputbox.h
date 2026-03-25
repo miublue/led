@@ -129,7 +129,7 @@ void input_render(inputbox_t *ib, int x, int y, int w, int attr) {
     const int off = (ib->pos >= w-1)? ib->pos-w+1 : 0;
     memset(text, ' ', sizeof(text));
     memcpy(text, ib->text+off, cap);
-    mvprintw(y, x, "%.*s", cap, text);
+    mvprintw(y, x, "%.*s", w, text);
     attrset(attr);
     mvprintw(y, x+ib->pos-off, "%c", isprint(ib->text[ib->pos])? ib->text[ib->pos] : ' ');
     attroff(attr);

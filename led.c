@@ -17,7 +17,7 @@ static struct {
 
 static struct {
     char *prgname;
-    int mode, ww, wh, cur_x, cur_y, num_buffers, max_buffers;
+    int mode, ww, wh, num_buffers, max_buffers;
     struct buffer *buffers, *cur_buffer;
     inputbox_t input, input_find;
 } led;
@@ -145,16 +145,6 @@ static void _quit_curses(void) {
     curs_set(1);
 }
 
-static void _get_term_size(void) {
-    getmaxyx(stdscr, led.wh, led.ww); // XXX: maybe save a backup of the file before exitting
-    if (led.ww < MIN_TERM_WIDTH || led.wh < MIN_TERM_HEIGHT) {
-        _quit_curses();
-        fprintf(stderr, "error: %s requires minimal terminal size of %dx%d\n",
-            led.prgname, MIN_TERM_WIDTH, MIN_TERM_HEIGHT);
-        exit(1);
-    }
-}
-
 static struct buffer *_new_buf(void) {
     if (led.num_buffers >= led.max_buffers)
         led.buffers = realloc(led.buffers, (led.max_buffers *= 1.5)*sizeof(struct buffer));
@@ -170,6 +160,8 @@ static struct buffer *_new_buf(void) {
 }
 
 void exit_program(void) {
+    for (led.cur_buffer = &led.buffers[0]; led.num_buffers != 0;)
+        close_buffer(led.cur_buffer);
     _quit_curses();
     exit(0);
 }
@@ -202,7 +194,7 @@ open_file_fail:
     exit_program();
 }
 
-void close_file(struct buffer *buf) {
+void close_buffer(struct buffer *buf) {
     if (buf->name) free(buf->name);
     if (buf->text) free(buf->text);
     if (buf->lines) free(buf->lines);
@@ -499,8 +491,8 @@ static void _render_line(struct buffer *buf, int l, int off, int lineoff) {
     for (int i = line.start; i <= line.end; ++i) {
         int attr = 0;
         if (buf->cur.cur == i) {
-            led.cur_x = sz;
-            led.cur_y = l-buf->cur.off;
+            buf->cur_x = sz;
+            buf->cur_y = l-buf->cur.off;
         }
         if (_is_selected(buf, i)) attr = A_REVERSE;
         attron(attr);
@@ -564,19 +556,20 @@ static void _render_status(void) {
     mvprintw(led.wh-1, 0, "%s", status);
     attroff(attr);
 #endif
-    sprintf(status, " %s (buffer %d:%d) %d %d:%ld %s ",
-        buf->is_readonly? "[RO]" : "",
-        (buf-led.buffers)+1, led.num_buffers,
+    sprintf(status, "%s %d %d:%ld (%d:%d %s) ",
+        buf->is_readonly? " [RO]" : "",
         buf->cur.cur-buf->lines[buf->cur.line].start+1,
-        buf->cur.line+1, buf->lines_sz, buf->name);
+        buf->cur.line+1, buf->lines_sz,
+        (buf-led.buffers)+1, led.num_buffers, buf->name);
     attron(attr);
     mvprintw(led.wh-1, led.ww-strlen(status), "%s", status);
     if (led.mode != MODE_NONE) {
         const char *astr = _mode_to_cstr();
         mvprintw(led.wh-1, 0, "%s", astr);
-        const int cap = strlen(astr)+strlen(status), at = CFG_INVERTSTATUS? A_NORMAL : A_REVERSE;
+        const int s = strlen(astr), cap = s+strlen(status), at = CFG_INVERTSTATUS? A_NORMAL : A_REVERSE;
+        const int w = led.ww-cap < s? led.ww-s : led.ww-cap;
         if (led.mode != MODE_EXIT)
-            input_render(&led.input, strlen(astr), led.wh-1, led.ww-cap, at);
+            input_render(&led.input, strlen(astr), led.wh-1, w, at);
     }
     attroff(attr);
 }
@@ -632,7 +625,7 @@ static void _update_replace(struct buffer *buf, int ch) {
 }
 
 static void _update_exit(struct buffer *buf, int ch) {
-    if (strchr("Yy\n", ch) || ch == CTRL('q')) close_file(buf);
+    if (strchr("Yy\n", ch) || ch == CTRL('q')) close_buffer(buf);
     led.mode = MODE_NONE;
     return;
 }
@@ -717,7 +710,7 @@ static void _update_insert(struct buffer *buf, int ch) {
 #endif
     case CTRL('q'):
         if (buf->last_change != buf->action) led.mode = MODE_EXIT;
-        else close_file(buf);
+        else close_buffer(buf);
         return;
     case CTRL('o'):
         led.mode = MODE_OPEN;
@@ -847,7 +840,7 @@ static void _update(struct buffer *buf) {
     };
     int ch = getch();
     if (ch == KEY_RESIZE) {
-        _get_term_size();
+        getmaxyx(stdscr, led.wh, led.ww);;
         while (buf->cur.line-buf->cur.off < 0) move_down(buf);
         while (buf->cur.line-buf->cur.off >= led.wh-1) move_up(buf);
         buf->cur.sel = buf->cur.cur;
@@ -889,15 +882,27 @@ int main(int argc, char **argv) {
     }
     if (!led.num_buffers) _usage(FALSE);
     _init_curses();
-    _get_term_size();
+    getmaxyx(stdscr, led.wh, led.ww);
+    if (led.ww < MIN_TERM_WIDTH || led.wh < MIN_TERM_HEIGHT) {
+        _quit_curses();
+        fprintf(stderr, "error: %s requires minimal terminal size of %dx%d\n",
+            led.prgname, MIN_TERM_WIDTH, MIN_TERM_HEIGHT);
+        return 1;
+    }
     for (;;) {
-        curs_set(0);
-        erase();
-        _render_text(led.cur_buffer);
-        _render_status();
-        if (!is_selecting(led.cur_buffer)) curs_set(1);
-        move(led.cur_y, led.cur_x);
+        if (led.ww >= MIN_TERM_WIDTH && led.wh >= MIN_TERM_HEIGHT) {
+            curs_set(0);
+            erase();
+            _render_text(led.cur_buffer);
+            _render_status();
+            if (!is_selecting(led.cur_buffer)) curs_set(1);
+            move(led.cur_buffer->cur_y, led.cur_buffer->cur_x);
+        } else {
+            erase();
+            mvprintw(0, 0, "terminal too small");
+        }
         _update(led.cur_buffer);
     }
+    exit_program();
     return 0;
 }

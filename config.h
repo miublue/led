@@ -8,4 +8,3 @@
 #define CFG_INVERTSTATUS TRUE
 
 #endif
-
