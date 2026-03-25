@@ -16,15 +16,11 @@ static struct {
 } opts;
 
 static struct {
-    const char *prgname;
-    size_t text_sz, text_alloc;
-    size_t lines_sz, lines_alloc;
-    size_t actions_sz, actions_alloc;
-    int mode, action, last_change, ww, wh;
-    int cur_x, cur_y;
-    int is_undo, is_readonly;
+    char *prgname, *text, *file;
+    size_t text_sz, text_alloc, lines_sz, lines_alloc, actions_sz, actions_alloc;
+    int mode, next_mode, action, last_change, ww, wh, cur_x, cur_y;
+    bool is_undo, is_readonly;
     cursor_t cur;
-    char *text, *file;
     line_t *lines;
     action_t *actions;
     inputbox_t input, input_find;
@@ -544,13 +540,13 @@ static void _render_text(void) {
 }
 
 static inline char *_mode_to_cstr(void) {
+    static char str[ALLOC_SIZE] = {0};
     switch (led.mode) {
-    case MODE_EXIT: return "File has been modified, exit anyway (y/n)? ";
     case MODE_FIND: return "Find: ";
     case MODE_GOTO: return "Goto: ";
     case MODE_OPEN: return "Open: ";
+    case MODE_CONFIRM: return "File has been modified, continue (y/n)?";
     case MODE_REPLACE: {
-        static char str[ALLOC_SIZE] = {0};
         sprintf(str, "Replace(%.*s): ", led.input_find.text_sz, led.input_find.text);
         return str;
     }
@@ -578,7 +574,7 @@ static void _render_status(void) {
         const char *astr = _mode_to_cstr();
         mvprintw(led.wh-1, 0, "%s", astr);
         const int cap = strlen(astr)+strlen(status), at = CFG_INVERTSTATUS? A_NORMAL : A_REVERSE;
-        if (led.mode != MODE_EXIT)
+        if (led.mode != MODE_CONFIRM)
             input_render(&led.input, strlen(astr), led.wh-1, led.ww-cap, at);
     }
     attroff(attr);
@@ -634,10 +630,16 @@ static void _update_replace(int ch) {
     input_update(&led.input, ch);
 }
 
-static void _update_exit(int ch) {
-    if (strchr("Yy\n", ch) || ch == CTRL('q')) exit_program();
-    led.mode = MODE_NONE;
+static void _update_confirm(int ch) {
+    led.mode = (strchr("Yy\n", ch))? led.next_mode : MODE_NONE;
+    led.next_mode = MODE_NONE;
     return;
+}
+
+static void _confirm_mode(int mode) {
+    if (led.last_change != led.action) led.mode = MODE_CONFIRM, led.next_mode = mode;
+    else led.mode = mode, led.next_mode = MODE_NONE;
+    input_reset(&led.input);
 }
 
 static void _update_find(int ch) {
@@ -705,12 +707,7 @@ static void _update_insert(int ch) {
         break;
 #endif
     case CTRL('q'):
-        if (led.last_change != led.action) {
-            led.mode = MODE_EXIT;
-            input_reset(&led.input);
-        } else {
-            exit_program();
-        }
+        _confirm_mode(MODE_EXIT);
         break;
     case CTRL('s'):
         write_file(led.file);
@@ -730,8 +727,7 @@ static void _update_insert(int ch) {
         input_reset(&led.input);
         break;
     case CTRL('o'):
-        led.mode = MODE_OPEN;
-        input_reset(&led.input);
+        _confirm_mode(MODE_OPEN);
         break;
     case CTRL('r'): case CTRL('f'):
         led.mode = MODE_FIND;
@@ -827,13 +823,14 @@ static void _update_insert(int ch) {
 }
 
 static void _update(void) {
+    if (led.mode == MODE_EXIT) exit_program();
     void (*update_fns[])(int) = {
         [MODE_NONE]    = &_update_insert,
-        [MODE_EXIT]    = &_update_exit,
         [MODE_FIND]    = &_update_find,
         [MODE_GOTO]    = &_update_goto,
         [MODE_OPEN]    = &_update_open,
         [MODE_REPLACE] = &_update_replace,
+        [MODE_CONFIRM] = &_update_confirm,
     };
     int ch = getch();
     if (ch == KEY_RESIZE) {
