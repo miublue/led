@@ -554,7 +554,7 @@ static void _render_status(void) {
     mvprintw(led.wh-1, 0, "%s", status);
     attroff(attr);
 #endif
-    sprintf(status, "%s %d %d:%ld (%d:%d %s) ",
+    sprintf(status, "%s %d %d:%ld (%ld:%d %s) ",
         buf->is_readonly? " [RO]" : "",
         buf->cur.cur-buf->lines[buf->cur.line].start+1,
         buf->cur.line+1, buf->lines_sz,
@@ -860,7 +860,6 @@ e:  exit(0);
 int main(int argc, char **argv) {
     led.prgname = argv[0];
     if (argc < 2) _usage(FALSE);
-    char *path = NULL;
     opts.ignore_case = CFG_IGNORECASE;
     opts.show_numbers = CFG_LINENUMBER;
     opts.expand_tabs = CFG_EXPANDTAB;
