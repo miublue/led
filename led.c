@@ -616,7 +616,7 @@ static void _update_replace(struct buffer *buf, int ch) {
         led.mode = MODE_FIND;
         return;
     } else if (ch == CTRL('n')) {
-        if (led.input.text_sz && led.input_find.text_sz)
+        if (led.input_find.text_sz)
             _find_next(buf, led.input_find);
     }
     input_update(&led.input, ch);
