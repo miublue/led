@@ -554,11 +554,12 @@ static void _render_status(void) {
     mvprintw(led.wh-1, 0, "%s", status);
     attroff(attr);
 #endif
-    sprintf(status, "%s %d %d:%ld (%ld:%d %s) ",
+    sprintf(status, "%s %d %d:%ld (%ld:%d %s%s) ",
         buf->is_readonly? " [RO]" : "",
         buf->cur.cur-buf->lines[buf->cur.line].start+1,
         buf->cur.line+1, buf->lines_sz,
-        (buf-led.buffers)+1, led.num_buffers, buf->name);
+        (buf-led.buffers)+1, led.num_buffers, buf->name,
+        buf->last_change != buf->action? "*" : "");
     attron(attr);
     mvprintw(led.wh-1, led.ww-strlen(status), "%s", status);
     if (led.mode != MODE_NONE) {
