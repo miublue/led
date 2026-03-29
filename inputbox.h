@@ -74,29 +74,13 @@ static inline void _input_remove_prev_word(struct inputbox *ib) {
 }
 
 void input_update(struct inputbox *ib, int key) {
+    const char *kname = keyname(key);
     switch (key) {
-#ifdef _USE_MTM
-    case 200:
-        switch (getch()) {
-        default: break;
-        case 144: _input_remove_next_word(ib); break;
-        case 170: _input_prev_word(ib); break;
-        case 185: _input_next_word(ib); break;
-        }
-        break;
-#endif
-    case KEY_RESIZE: break;
     case KEY_LEFT:
         if (ib->pos > 0) --ib->pos;
         break;
     case KEY_RIGHT:
         if (ib->pos < ib->text_sz) ++ib->pos;
-        break;
-    case 545: case 554: case 557: // ctrl + left
-        _input_prev_word(ib);
-        break;
-    case 560: case 569: case 572: // ctrl + right
-        _input_next_word(ib);
         break;
     case KEY_UP: case KEY_HOME:
         ib->pos = 0;
@@ -111,14 +95,14 @@ void input_update(struct inputbox *ib, int key) {
     case KEY_BACKSPACE:
         _input_remove_char(ib, TRUE);
         break;
-    case 528: case 531: // ctrl + del
-        _input_remove_next_word(ib);
-        break;
     case 127: case 8: // ctrl + backspace
         _input_remove_prev_word(ib);
         break;
     default:
         if (isprint(key)) _input_insert_char(ib, key);
+        else if (!strcmp(kname, "kDC5"))  _input_remove_next_word(ib);
+        else if (!strcmp(kname, "kLFT5")) _input_prev_word(ib);
+        else if (!strcmp(kname, "kRIT5")) _input_next_word(ib);
         break;
     }
 }

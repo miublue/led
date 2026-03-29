@@ -138,6 +138,26 @@ static void _init_curses(void) {
     raw();
     noecho();
     keypad(stdscr, TRUE);
+    define_key("\e[1~", KEY_HOME);
+    define_key("\e[4~", KEY_END);
+#ifdef _USE_MTM
+    char key[10] = {0};
+    sprintf(key, "%c%c", 197, 144); define_key(key, KEY_SF);
+    sprintf(key, "%c%c", 197, 145); define_key(key, KEY_SR);
+    sprintf(key, "%c%c", 198, 130); define_key(key, KEY_SEND);
+    sprintf(key, "%c%c", 198, 135); define_key(key, KEY_SHOME);
+    sprintf(key, "%c%c", 198, 137); define_key(key, KEY_SLEFT);
+    sprintf(key, "%c%c", 198, 146); define_key(key, KEY_SRIGHT);
+    sprintf(key, "%c%c", 198, 140); define_key(key, KEY_SNEXT);
+    sprintf(key, "%c%c", 198, 142); define_key(key, KEY_SPREVIOUS);
+    sprintf(key, "%c%c", 200, 144); define_key(key, 528); // kDC5
+    sprintf(key, "%c%c", 200, 155); define_key(key, 539); // kEND5
+    sprintf(key, "%c%c", 200, 160); define_key(key, 544); // kHOM5
+    sprintf(key, "%c%c", 200, 170); define_key(key, 554); // kLFT5
+    sprintf(key, "%c%c", 200, 171); define_key(key, 555); // kLFT6
+    sprintf(key, "%c%c", 200, 185); define_key(key, 569); // kRIT5
+    sprintf(key, "%c%c", 200, 186); define_key(key, 570); // kRIT6
+#endif
 }
 
 static void _quit_curses(void) {
@@ -325,6 +345,7 @@ void remove_char(struct buffer *buf, bool backspace) {
 }
 
 void remove_prev_word(struct buffer *buf) {
+    if (is_selecting(buf)) return remove_selection(buf);
     if (buf->cur.cur == 0) return;
     if (DELIM(buf->text[buf->cur.cur])) move_left(buf);
     buf->cur.sel = buf->cur.cur;
@@ -333,6 +354,7 @@ void remove_prev_word(struct buffer *buf) {
 }
 
 void remove_next_word(struct buffer *buf) {
+    if (is_selecting(buf)) return remove_selection(buf);
     move_next_word(buf);
     remove_selection(buf);
 }
@@ -594,6 +616,18 @@ static void _jump_to_line(struct buffer *buf) {
     goto_line(buf, line);
 }
 
+static void _switch_buffer(void) {
+    if (led.num_buffers > 1) {
+        if (++led.cur_buffer == &led.buffers[led.num_buffers])
+            led.cur_buffer = &led.buffers[0];
+    }
+}
+
+static void _switch_mode(int m) {
+    led.mode = m;
+    input_reset(&led.input);
+}
+
 static bool _update_none(int ch) {
     if (ch == CTRL('c') || ch == CTRL('q')) {
         led.mode = MODE_NONE;
@@ -673,124 +707,48 @@ static void _update_open(struct buffer *buf, int ch) {
 }
 
 static void _update_insert(struct buffer *buf, int ch) {
+    const char *key = keyname(ch);
     // XXX: configurable keys
     switch (ch) {
-#ifdef _USE_MTM
-    case 197:
-        switch (getch()) {
-        default: break;
-        case 144: return move_down(buf);
-        case 145: return move_up(buf);
-        }
-        break;
-    case 198:
-        switch (getch()) {
-        default: break;
-        case 130: return move_end(buf);
-        case 135: return move_home(buf);
-        case 137: return move_left(buf);
-        case 140: return page_down(buf);
-        case 142: return page_up(buf);
-        case 146: return move_right(buf);
-        }
-        break;
-    case 200:
-        switch (getch()) {
-        default: break;
-        case 144: remove_next_word(buf); break;
-        case 155: goto_line(buf, buf->lines_sz); break;
-        case 160: goto_line(buf, 1); break;
-        case 170: move_prev_word(buf); break;
-        case 171: return move_prev_word(buf);
-        case 185: move_next_word(buf); break;
-        case 186: return move_next_word(buf);
-        }
-        break;
-#endif
     case CTRL('q'):
         if (buf->last_change != buf->action) led.mode = MODE_EXIT;
         else close_buffer(buf);
         return;
-    case CTRL('o'):
-        led.mode = MODE_OPEN;
-        input_reset(&led.input);
-        break;
-    case CTRL('s'):
-        write_file(buf, buf->name); break;
-    case CTRL('z'):
-        undo_action(buf); break;
-    case CTRL('y'):
-        redo_action(buf); break;
-    case CTRL('c'):
-        copy_selection(buf); break;
-    case CTRL('v'):
-        paste_text(buf); break;
+    case CTRL('n'):
+        if (led.input.text_sz) _find_next(buf, led.input);
+        return;
     case CTRL('x'):
         copy_selection(buf);
         remove_selection(buf);
         break;
-    case CTRL('g'):
-        led.mode = MODE_GOTO;
-        input_reset(&led.input);
-        break;
-    case CTRL('r'): case CTRL('f'):
-        led.mode = MODE_FIND;
-        input_reset(&led.input);
-        break;
-    case CTRL('n'):
-        if (led.input.text_sz) _find_next(buf, led.input);
-        return;
-    case CTRL('w'):
-        if (led.num_buffers > 1) {
-            if (++led.cur_buffer == &led.buffers[led.num_buffers])
-                led.cur_buffer = &led.buffers[0];
-        }
-        return;
-    case KEY_LEFT:
-        move_left(buf); break;
-    case KEY_SLEFT:
-        return move_left(buf);
-    case KEY_RIGHT:
-        move_right(buf); break;
-    case KEY_SRIGHT:
-        return move_right(buf);
-    // XXX: these keys differ depending on the keyboard/terminal
-    case 560: case 569: case 572: // ctrl + right
-        move_next_word(buf); break;
-    case 561: case 570: case 573: // ctrl + shift + right
-        return move_next_word(buf);
-    case 545: case 554: case 557: // ctrl + left
-        move_prev_word(buf); break;
-    case 546: case 555: case 558: // ctrl + shift + left
-        return move_prev_word(buf);
-    case KEY_UP:
-        move_up(buf); break;
-    case KEY_SR:
-        return move_up(buf);
-    case KEY_DOWN:
-        move_down(buf); break;
-    case KEY_SF:
-        return move_down(buf);
-    case KEY_HOME:
-        move_home(buf); break;
-    case KEY_SHOME:
-        return move_home(buf);
-    case KEY_END:
-        move_end(buf); break;
-    case KEY_SEND:
-        return move_end(buf);
-    case 547: case 544: // ctrl + home
-        goto_line(buf, 1); break;
-    case 542: case 539: case 334: // ctrl + end
-        goto_line(buf, buf->lines_sz); break;
-    case KEY_PPAGE: // pageup
-        page_up(buf); break;
-    case KEY_SPREVIOUS: // shift + pageup
-        return page_up(buf);
-    case KEY_NPAGE: // pagedown
-        page_down(buf); break;
-    case KEY_SNEXT: // shift + pagedown
-        return page_down(buf);
+    case CTRL('c'):     copy_selection(buf); break;
+    case CTRL('v'):     paste_text(buf); break;
+    case CTRL('o'):     _switch_mode(MODE_OPEN); break;
+    case CTRL('s'):     write_file(buf, buf->name); break;
+    case CTRL('z'):     undo_action(buf); break;
+    case CTRL('y'):     redo_action(buf); break;
+    case CTRL('g'):     _switch_mode(MODE_GOTO); break;
+    case CTRL('r'):
+    case CTRL('f'):     _switch_mode(MODE_FIND); break;
+    case CTRL('w'):     return _switch_buffer();
+    case KEY_LEFT:      move_left(buf); break;
+    case KEY_SLEFT:     return move_left(buf);
+    case KEY_RIGHT:     move_right(buf); break;
+    case KEY_SRIGHT:    return move_right(buf);
+    case KEY_UP:        move_up(buf); break;
+    case KEY_SR:        return move_up(buf);
+    case KEY_DOWN:      move_down(buf); break;
+    case KEY_SF:        return move_down(buf);
+    case KEY_FIND:
+    case KEY_HOME:      move_home(buf); break;
+    case KEY_SHOME:     return move_home(buf);
+    case KEY_SELECT:
+    case KEY_END:       move_end(buf); break;
+    case KEY_SEND:      return move_end(buf);
+    case KEY_PPAGE:     page_up(buf); break;
+    case KEY_SPREVIOUS: return page_up(buf);
+    case KEY_NPAGE:     page_down(buf); break;
+    case KEY_SNEXT:     return page_down(buf);
     case '\n':
         if (is_selecting(buf)) remove_selection(buf);
         insert_char(buf, '\n'); break;
@@ -811,25 +769,27 @@ static void _update_insert(struct buffer *buf, int ch) {
             remove_char(buf, TRUE);
         }
         break;
-    case 528: case 531: case 333: // ctrl + del
-        if (is_selecting(buf)) remove_selection(buf);
-        else remove_next_word(buf);
-        break;
     case 8: case 127: // ctrl + backspace
-        if (is_selecting(buf)) remove_selection(buf);
-        else remove_prev_word(buf);
+        remove_prev_word(buf); break;
+    default:
+        if (!strcmp(key, "kDC5"))       remove_next_word(buf);
+        else if (!strcmp(key, "kLFT5")) move_prev_word(buf);
+        else if (!strcmp(key, "kLFT6")) return move_prev_word(buf);
+        else if (!strcmp(key, "kRIT5")) move_next_word(buf);
+        else if (!strcmp(key, "kRIT6")) return move_next_word(buf);
+        else if (!strcmp(key, "kHOM5")) goto_line(buf, 1);
+        else if (!strcmp(key, "kEND5")) goto_line(buf, buf->lines_sz);
+        else if (isprint(ch)) {
+            if (is_selecting(buf)) remove_selection(buf);
+            insert_char(buf, ch);
+        }
         break;
-    default: {
-        if (!isprint(ch)) break;
-        if (is_selecting(buf)) remove_selection(buf);
-        insert_char(buf, ch);
-    } break;
     }
     buf->cur.sel = buf->cur.cur;
 }
 
 static void _update(struct buffer *buf) {
-    void (*update_fns[])(struct buffer*, int) = {
+    static const void (*update_fns[])(struct buffer*, int) = {
         [MODE_EXIT]    = &_update_exit,
         [MODE_NONE]    = &_update_insert,
         [MODE_FIND]    = &_update_find,
