@@ -455,7 +455,7 @@ void copy_selection(struct buffer *buf) {
     if (!file) return;
     fwrite(buf->text+sel.start, 1, sel.end-sel.start+1, file);
     fclose(file);
-    if (system("cat '/tmp/ledsel' | xsel -b")){}
+    if (system("cat '/tmp/ledsel' | xsel -b 2> /dev/null")){}
 }
 
 void paste_text(struct buffer *buf) {
