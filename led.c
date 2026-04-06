@@ -463,7 +463,7 @@ void paste_text(struct buffer *buf) {
     if (is_selecting(buf)) remove_selection(buf);
     // a bit roundabout, but probably still faster than pasting
     // from terminal and inserting the text character by character
-    if (system("xsel -bo > /tmp/ledsel")){}
+    if (system("xsel -bo 2> /dev/null > /tmp/ledsel")){}
     int sz;
     FILE *file = fopen("/tmp/ledsel", "r");
     if (!file) return;
