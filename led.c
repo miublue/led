@@ -369,7 +369,7 @@ void indent(struct buffer *buf) {
     int cur = buf->cur.cur, add = 1;
     buf->cur.cur = buf->lines[buf->cur.line].start;
     // XXX: some filetype detection would be pretty handy later on
-    if (!opts.expand_tabs || !strcasecmp(buf->name, "makefile")) insert_char(buf, '\t');
+    if (!opts.expand_tabs || strcasestr(buf->name, "makefile")) insert_char(buf, '\t');
     else for (add = 0; add < opts.tab_width; ++add) insert_char(buf, ' ');
     buf->cur.cur = cur + add;
     if (buf->cur.cur > buf->lines[buf->cur.line].end) buf->cur.cur = buf->lines[buf->cur.line].end;
