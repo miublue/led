@@ -1,4 +1,5 @@
 #include <sys/stat.h>
+#include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -8,6 +9,8 @@
 #include "config.h"
 #define INPUTBOX_IMPL
 #include "inputbox.h"
+#define FILEPICKER_IMPL
+#include "filepicker.h"
 
 // ABANDON ALL HOPE, YE WHO ENTER HERE
 
@@ -20,6 +23,7 @@ static struct {
     int mode, ww, wh, num_buffers, max_buffers;
     struct buffer *buffers, *cur_buffer;
     struct inputbox input, input_find;
+    struct filepicker picker;
 } led;
 
 static void _actions_append(struct buffer *buf, struct action act) {
@@ -202,6 +206,7 @@ void open_file(char *path, bool is_readonly) {
     FILE *file = NULL;
     led.cur_buffer = create_buffer(path);
     led.mode = MODE_NONE;
+    // XXX: clean up this mess
     if (stat(path, &stbuf) != 0) {
         // try creating file if it cannot stat it, exit if that also fails
         if (!(file = fopen(path, "w+"))) goto open_file_fail;
@@ -364,10 +369,8 @@ void indent(struct buffer *buf) {
     int cur = buf->cur.cur, add = 1;
     buf->cur.cur = buf->lines[buf->cur.line].start;
     // XXX: some filetype detection would be pretty handy later on
-    if (!opts.expand_tabs || !strcasecmp(buf->name, "makefile"))
-        insert_char(buf, '\t');
-    else for (add = 0; add < opts.tab_width; ++add)
-        insert_char(buf, ' ');
+    if (!opts.expand_tabs || !strcasecmp(buf->name, "makefile")) insert_char(buf, '\t');
+    else for (add = 0; add < opts.tab_width; ++add) insert_char(buf, ' ');
     buf->cur.cur = cur + add;
     if (buf->cur.cur > buf->lines[buf->cur.line].end) buf->cur.cur = buf->lines[buf->cur.line].end;
     if (buf->cur.cur < buf->lines[buf->cur.line].start) buf->cur.cur = buf->lines[buf->cur.line].start;
@@ -377,10 +380,8 @@ void unindent(struct buffer *buf) {
     if (buf->is_readonly) return;
     int cur = buf->cur.cur, rem = 1;
     buf->cur.cur = buf->lines[buf->cur.line].start;
-    if (buf->text[buf->cur.cur] == '\t')
-        remove_char(buf, FALSE);
-    else for (rem = 0; rem < opts.tab_width && buf->text[buf->cur.cur] == ' '; ++rem)
-        remove_char(buf, FALSE);
+    if (buf->text[buf->cur.cur] == '\t') remove_char(buf, FALSE);
+    else for (rem = 0; rem < opts.tab_width && buf->text[buf->cur.cur] == ' '; ++rem) remove_char(buf, FALSE);
     buf->cur.cur = cur - rem;
     if (buf->cur.cur > buf->lines[buf->cur.line].end) buf->cur.cur = buf->lines[buf->cur.line].end;
     if (buf->cur.cur < buf->lines[buf->cur.line].start) buf->cur.cur = buf->lines[buf->cur.line].start;
@@ -589,8 +590,7 @@ static void _render_status(void) {
         mvprintw(led.wh-1, 0, "%s", astr);
         const int s = strlen(astr), cap = s+strlen(status), at = CFG_INVERTSTATUS? A_NORMAL : A_REVERSE;
         const int w = cap+5 > led.ww? led.ww-s : led.ww-cap;
-        if (led.mode != MODE_EXIT)
-            input_render(&led.input, strlen(astr), led.wh-1, w, at);
+        if (led.mode != MODE_EXIT) input_render(&led.input, strlen(astr), led.wh-1, w, at);
     }
     attroff(attr);
 }
@@ -624,8 +624,10 @@ static void _switch_buffer(void) {
 }
 
 static void _switch_mode(int m) {
+    char buf[PATH_MAX];
     led.mode = m;
-    input_reset(&led.input);
+    if (m == MODE_OPEN) picker_scan(&led.picker, getcwd(buf, PATH_MAX));
+    else input_reset(&led.input);
 }
 
 static bool _update_none(int ch) {
@@ -689,21 +691,43 @@ static void _update_goto(struct buffer *buf, int ch) {
 
 static void _update_open(struct buffer *buf, int ch) {
     if (_update_none(ch)) return;
-    if (ch == '\n') {
+    if (!led.picker.num_files) {
         led.mode = MODE_NONE;
-        if (!led.input.text_sz) return;
-        char *name = strndup(led.input.text, led.input.text_sz);
+        return;
+    }
+    if (ch == CTRL('f') && led.input.text_sz) {
+        char *text = strndup(led.input.text, led.input.text_sz);
+        int f = picker_find(&led.picker, text);
+        if (f != -1) {
+            for (led.picker.cur = led.picker.off = 0; led.picker.cur < f; led.picker.cur++)
+                if (led.picker.cur-led.picker.off >= led.picker.h) ++led.picker.off;
+        }
+        free(text);
+    } else if (ch == '\n') {
+        led.mode = MODE_NONE;
+        char name[PATH_MAX];
+        snprintf(name, PATH_MAX, "%s/%s", led.picker.path, led.picker.files[led.picker.cur]->d_name);
+        struct stat sb;
+        if (stat(name, &sb) != 0) {
+            insert_text(buf, name, strlen(name));
+            return;
+        }
+        if (S_ISDIR(sb.st_mode)) {
+            led.mode = MODE_OPEN;
+            picker_scan(&led.picker, name);
+            return;
+        }
         for (int i = 0; i < led.num_buffers; ++i) {
             if (!strcmp(led.buffers[i].name, name)) {
-                free(name);
                 led.cur_buffer = &led.buffers[i];
                 return;
             }
         }
-        open_file(name, opts.is_readonly);
+        open_file(strdup(name), opts.is_readonly);
         return;
     }
-    input_update(&led.input, ch);
+    if (ch != KEY_UP && ch != KEY_DOWN && ch != KEY_HOME && ch != KEY_END && ch != KEY_PPAGE && ch != KEY_NPAGE) input_update(&led.input, ch);
+    else picker_update(&led.picker, ch);
 }
 
 static void _update_insert(struct buffer *buf, int ch) {
@@ -836,7 +860,11 @@ int main(int argc, char **argv) {
         else if (!strcmp(argv[i], "-e")) opts.expand_tabs  = !opts.expand_tabs;
         else if (!strcmp(argv[i], "-t") && i+1 < argc) opts.tab_width = atoi(argv[++i]);
         else if (argv[i][0] == '-') _usage(TRUE);
-        else open_file(strdup(argv[i]), opts.is_readonly);
+        else {
+            char name[PATH_MAX], cwd[PATH_MAX];
+            snprintf(name, PATH_MAX, "%s/%s", getcwd(cwd, PATH_MAX), argv[i]);
+            open_file(strdup(name), opts.is_readonly);
+        }
     }
     if (!led.num_buffers) _usage(FALSE);
     _init_curses();
@@ -851,10 +879,15 @@ int main(int argc, char **argv) {
         if (led.ww >= MIN_TERM_WIDTH && led.wh >= MIN_TERM_HEIGHT) {
             curs_set(0);
             erase();
-            _render_text(led.cur_buffer);
-            _render_status();
-            if (!is_selecting(led.cur_buffer)) curs_set(1);
-            move(led.cur_buffer->cur_y, led.cur_buffer->cur_x);
+            if (led.mode == MODE_OPEN) {
+                picker_render(&led.picker, 0, 0, led.ww-1, led.wh-2, 1);
+                _render_status();
+            } else {
+                _render_text(led.cur_buffer);
+                _render_status();
+                if (!is_selecting(led.cur_buffer)) curs_set(1);
+                move(led.cur_buffer->cur_y, led.cur_buffer->cur_x);
+            }
         } else {
             erase();
             mvprintw(0, 0, "terminal too small");
