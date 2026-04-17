@@ -652,7 +652,7 @@ static void _switch_mode(int m) {
     char buf[PATH_MAX];
     led.mode = m;
     if (m == MODE_OPEN) picker_scan(&led.picker, getcwd(buf, PATH_MAX));
-    else input_reset(&led.input);
+    input_reset(&led.input);
 }
 
 static bool _update_none(int ch) {
