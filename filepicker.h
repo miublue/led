@@ -16,7 +16,7 @@ struct filepicker {
 void picker_scan(struct filepicker *fp, char *path);
 int picker_find(struct filepicker *fp, char *name);
 void picker_update(struct filepicker *fp, int ch);
-void picker_render(struct filepicker *fp, int x, int y, int w, int h, int status);
+void picker_render(struct filepicker *fp, int x, int y, int w, int h);
 void picker_reset(struct filepicker *fp);
 
 #ifdef FILEPICKER_IMPL
@@ -68,23 +68,25 @@ void picker_update(struct filepicker *fp, int ch) {
         fp->cur = fp->off = 0;
         break;
     case KEY_END:
-        fp->cur = fp->num_files-1;
-        fp->off = fp->num_files-fp->h;
+        for (fp->cur = fp->off = 0; fp->cur+1 < fp->num_files; ) _picker_move(fp, 1);
         break;
     }
 }
 
-void picker_render(struct filepicker *fp, int x, int y, int w, int h, int status) {
+void picker_render(struct filepicker *fp, int x, int y, int w, int h) {
     fp->x = x, fp->y = y, fp->w = w, fp->h = h;
+    struct stat stbuf;
+    char fname[PATH_MAX];
     for (int i = fp->off; i < fp->off+fp->h; ++i) {
         if (i >= fp->num_files) break;
         const int attr = i == fp->cur? A_REVERSE : 0;
         struct dirent *ent = fp->files[i];
         attron(attr);
-        mvprintw(y+i-fp->off, x, "%.*s", w, ent->d_name);
+        snprintf(fname, PATH_MAX, "%s/%s", fp->path, ent->d_name);
+        stat(fname, &stbuf);
+        mvprintw(y+i-fp->off, x, "%.*s%s", w, ent->d_name, S_ISDIR(stbuf.st_mode)? "/" : "");
         attroff(attr);
     }
-    if (status) mvprintw(y+h, x, " %d:%d %s ", fp->cur+1, fp->num_files, fp->path);
 }
 
 void picker_reset(struct filepicker *fp) {
