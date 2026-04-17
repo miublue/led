@@ -905,7 +905,7 @@ int main(int argc, char **argv) {
             curs_set(0);
             erase();
             if (led.mode == MODE_OPEN) {
-                picker_render(&led.picker, 0, 0, led.ww-1, led.wh-2);
+                picker_render(&led.picker, 0, 0, led.ww-1, led.wh-1);
                 _render_status();
             } else {
                 _render_text(led.cur_buffer);
