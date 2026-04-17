@@ -566,6 +566,20 @@ static inline char *_mode_to_cstr(void) {
     }
 }
 
+static char *_expand_home(const char *name) {
+#if !EXPAND_HOME
+    const char *home = getenv("HOME");
+    if (!strstr(name, home)) goto end;
+    char *path = malloc(PATH_MAX);
+    memset(path, 0, PATH_MAX);
+    path[0] = '~';
+    strcat(path, name+strlen(home));
+    return path;
+#endif
+end:
+    return strdup(name);
+}
+
 static void _render_status(void) {
     char status[ALLOC_SIZE] = {0};
     struct buffer *buf = led.cur_buffer;
@@ -577,12 +591,23 @@ static void _render_status(void) {
     mvprintw(led.wh-1, 0, "%s", status);
     attroff(attr);
 #endif
-    sprintf(status, "%s %d %d:%ld (%ld:%d %s%s) ",
-        buf->is_readonly? " [RO]" : "",
-        buf->cur.cur-buf->lines[buf->cur.line].start+1,
-        buf->cur.line+1, buf->lines_sz,
-        (buf-led.buffers)+1, led.num_buffers, buf->name,
-        buf->last_change != buf->action? "*" : "");
+    if (led.mode == MODE_OPEN) {
+        char *buf_name = _expand_home(led.picker.path);
+        sprintf(status, "%s %d:%ld (%ld:%d %s) ",
+            opts.is_readonly? " [RO]" : "",
+            led.picker.cur+1, led.picker.num_files,
+            (buf-led.buffers)+1, led.num_buffers, buf_name);
+        free(buf_name);
+    } else {
+        char *buf_name = _expand_home(buf->name);
+        sprintf(status, "%s %d %d:%ld (%ld:%d %s%s) ",
+            buf->is_readonly? " [RO]" : "",
+            buf->cur.cur-buf->lines[buf->cur.line].start+1,
+            buf->cur.line+1, buf->lines_sz,
+            (buf-led.buffers)+1, led.num_buffers, buf_name,
+            buf->last_change != buf->action? "*" : "");
+        free(buf_name);
+    }
     attron(attr);
     mvprintw(led.wh-1, led.ww-strlen(status), "%s", status);
     if (led.mode != MODE_NONE) {
@@ -880,7 +905,7 @@ int main(int argc, char **argv) {
             curs_set(0);
             erase();
             if (led.mode == MODE_OPEN) {
-                picker_render(&led.picker, 0, 0, led.ww-1, led.wh-2, 1);
+                picker_render(&led.picker, 0, 0, led.ww-1, led.wh-2);
                 _render_status();
             } else {
                 _render_text(led.cur_buffer);
