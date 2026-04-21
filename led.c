@@ -610,7 +610,7 @@ static void _render_status(void) {
     }
     attron(attr);
     mvprintw(led.wh-1, led.ww-strlen(status), "%s", status);
-    if (led.mode != MODE_NONE) {
+    if (led.mode != MODE_NONE && led.mode != MODE_OPEN) {
         const char *astr = _mode_to_cstr();
         mvprintw(led.wh-1, 0, "%s", astr);
         const int s = strlen(astr), cap = s+strlen(status), at = CFG_INVERTSTATUS? A_NORMAL : A_REVERSE;
@@ -725,7 +725,6 @@ static inline void _update_open_find(void) {
 }
 
 static void _update_open(struct buffer *buf, int ch) {
-    if (_update_none(ch)) return;
     if (led.picker.num_files <= 0) {
         led.mode = MODE_NONE;
         return;
@@ -742,6 +741,7 @@ static void _update_open(struct buffer *buf, int ch) {
         input_update(&led.input, ch);
         return;
     }
+    if (_update_none(ch)) return;
     if (ch == CTRL('f')) {
         input_reset(&led.input);
         led.mode = MODE_OPEN_FIND;
