@@ -13,7 +13,7 @@ struct filepicker {
     int num_files, cur, off, x, y, w, h;
 };
 
-void picker_scan(struct filepicker *fp, char *path);
+int picker_scan(struct filepicker *fp, char *path);
 int picker_find(struct filepicker *fp, char *name);
 void picker_update(struct filepicker *fp, int ch);
 void picker_render(struct filepicker *fp, int x, int y, int w, int h);
@@ -23,10 +23,10 @@ void picker_reset(struct filepicker *fp);
 
 #include <stdlib.h>
 
-void picker_scan(struct filepicker *fp, char *path) {
+int picker_scan(struct filepicker *fp, char *path) {
     picker_reset(fp);
     strcpy(fp->path, path);
-    fp->num_files = scandir(path, &fp->files, NULL, alphasort);
+    return fp->num_files = scandir(path, &fp->files, NULL, alphasort);
 }
 
 int picker_find(struct filepicker *fp, char *name) {

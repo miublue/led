@@ -726,7 +726,7 @@ static inline void _update_open_find(void) {
 
 static void _update_open(struct buffer *buf, int ch) {
     if (_update_none(ch)) return;
-    if (!led.picker.num_files) {
+    if (led.picker.num_files <= 0) {
         led.mode = MODE_NONE;
         return;
     }
@@ -755,10 +755,10 @@ static void _update_open(struct buffer *buf, int ch) {
         snprintf(name, PATH_MAX, "%s/%s", led.picker.path, led.picker.files[led.picker.cur]->d_name);
         char *path = realpath(name, NULL);
         struct stat sb;
-        stat(path, &sb);
+        if (stat(path, &sb) != 0) return;
         if (S_ISDIR(sb.st_mode)) {
-            led.mode = MODE_OPEN;
-            picker_scan(&led.picker, path);
+            if (picker_scan(&led.picker, path) > 0)
+                led.mode = MODE_OPEN;
             free(path);
             return;
         }
