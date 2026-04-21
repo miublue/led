@@ -555,7 +555,7 @@ static inline char *_mode_to_cstr(void) {
     static char str[ALLOC_SIZE] = {0};
     switch (led.mode) {
     case MODE_EXIT: return "File has been modified, close anyway? (y/n)";
-    case MODE_FIND: return "Find: ";
+    case MODE_FIND: case MODE_OPEN_FIND: return "Find: ";
     case MODE_GOTO: return "Goto: ";
     case MODE_OPEN: return "Open: ";
     case MODE_REPLACE: {
@@ -591,7 +591,7 @@ static void _render_status(void) {
     mvprintw(led.wh-1, 0, "%s", status);
     attroff(attr);
 #endif
-    if (led.mode == MODE_OPEN) {
+    if (led.mode == MODE_OPEN || led.mode == MODE_OPEN_FIND) {
         char *buf_name = _expand_home(led.picker.path);
         sprintf(status, "%s %d:%ld (%ld:%d %s) ",
             opts.is_readonly? " [RO]" : "",
@@ -714,45 +714,64 @@ static void _update_goto(struct buffer *buf, int ch) {
     input_update(&led.input, ch);
 }
 
+static inline void _update_open_find(void) {
+    char *text = strndup(led.input.text, led.input.text_sz);
+    int f = picker_find(&led.picker, text);
+    if (f != -1) {
+        for (led.picker.cur = led.picker.off = 0; led.picker.cur < f; led.picker.cur++)
+            if (led.picker.cur-led.picker.off >= led.wh-2) ++led.picker.off;
+    }
+    free(text);
+}
+
 static void _update_open(struct buffer *buf, int ch) {
     if (_update_none(ch)) return;
     if (!led.picker.num_files) {
         led.mode = MODE_NONE;
         return;
     }
-    if (ch == CTRL('f') && led.input.text_sz) {
-        char *text = strndup(led.input.text, led.input.text_sz);
-        int f = picker_find(&led.picker, text);
-        if (f != -1) {
-            for (led.picker.cur = led.picker.off = 0; led.picker.cur < f; led.picker.cur++)
-                if (led.picker.cur-led.picker.off >= led.picker.h) ++led.picker.off;
+    if (led.mode == MODE_OPEN_FIND) {
+        if (ch == CTRL('q') || ch == CTRL('c')) {
+            led.mode = MODE_OPEN;
+            return;
         }
-        free(text);
+        if (ch == '\n' && led.input.text_sz) {
+            _update_open_find();
+            led.mode = MODE_OPEN;
+        }
+        input_update(&led.input, ch);
+        return;
+    }
+    if (ch == CTRL('f')) {
+        input_reset(&led.input);
+        led.mode = MODE_OPEN_FIND;
+        return;
+    } else if (ch == CTRL('n') && led.input.text_sz) {
+        _update_open_find();
+        return;
     } else if (ch == '\n') {
         led.mode = MODE_NONE;
         char name[PATH_MAX];
         snprintf(name, PATH_MAX, "%s/%s", led.picker.path, led.picker.files[led.picker.cur]->d_name);
+        char *path = realpath(name, NULL);
         struct stat sb;
-        if (stat(name, &sb) != 0) {
-            insert_text(buf, name, strlen(name));
-            return;
-        }
+        stat(path, &sb);
         if (S_ISDIR(sb.st_mode)) {
             led.mode = MODE_OPEN;
-            picker_scan(&led.picker, name);
+            picker_scan(&led.picker, path);
+            free(path);
             return;
         }
         for (int i = 0; i < led.num_buffers; ++i) {
-            if (!strcmp(led.buffers[i].name, name)) {
+            if (!strcmp(led.buffers[i].name, path)) {
                 led.cur_buffer = &led.buffers[i];
                 return;
             }
         }
-        open_file(strdup(name), opts.is_readonly);
+        open_file(path, opts.is_readonly);
         return;
     }
-    if (ch != KEY_UP && ch != KEY_DOWN && ch != KEY_HOME && ch != KEY_END && ch != KEY_PPAGE && ch != KEY_NPAGE) input_update(&led.input, ch);
-    else picker_update(&led.picker, ch);
+    picker_update(&led.picker, ch);
 }
 
 static void _update_insert(struct buffer *buf, int ch) {
@@ -839,12 +858,13 @@ static void _update_insert(struct buffer *buf, int ch) {
 
 static void _update(struct buffer *buf) {
     static const void (*update_fns[])(struct buffer*, int) = {
-        [MODE_EXIT]    = &_update_exit,
-        [MODE_NONE]    = &_update_insert,
-        [MODE_FIND]    = &_update_find,
-        [MODE_GOTO]    = &_update_goto,
-        [MODE_OPEN]    = &_update_open,
-        [MODE_REPLACE] = &_update_replace,
+        [MODE_EXIT]      = &_update_exit,
+        [MODE_NONE]      = &_update_insert,
+        [MODE_FIND]      = &_update_find,
+        [MODE_REPLACE]   = &_update_replace,
+        [MODE_GOTO]      = &_update_goto,
+        [MODE_OPEN]      = &_update_open,
+        [MODE_OPEN_FIND] = &_update_open,
     };
     int ch = getch();
     if (ch == KEY_RESIZE) {
@@ -888,7 +908,7 @@ int main(int argc, char **argv) {
         else {
             char name[PATH_MAX], cwd[PATH_MAX];
             snprintf(name, PATH_MAX, "%s/%s", getcwd(cwd, PATH_MAX), argv[i]);
-            open_file(strdup(name), opts.is_readonly);
+            open_file(realpath(name, NULL), opts.is_readonly);
         }
     }
     if (!led.num_buffers) _usage(FALSE);
@@ -904,7 +924,7 @@ int main(int argc, char **argv) {
         if (led.ww >= MIN_TERM_WIDTH && led.wh >= MIN_TERM_HEIGHT) {
             curs_set(0);
             erase();
-            if (led.mode == MODE_OPEN) {
+            if (led.mode == MODE_OPEN || led.mode == MODE_OPEN_FIND) {
                 picker_render(&led.picker, 0, 0, led.ww-1, led.wh-1);
                 _render_status();
             } else {

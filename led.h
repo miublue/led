@@ -19,7 +19,7 @@ struct cursor {
     // (so maybe we could have multiple cursors later?)
 };
 
-enum { MODE_NONE, MODE_EXIT, MODE_FIND, MODE_GOTO, MODE_OPEN, MODE_REPLACE };
+enum { MODE_NONE, MODE_EXIT, MODE_FIND, MODE_REPLACE, MODE_GOTO, MODE_OPEN, MODE_OPEN_FIND, };
 
 struct action {
     enum { ACTION_INSERT, ACTION_DELETE, ACTION_BACKSPACE } type;
