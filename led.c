@@ -207,14 +207,11 @@ void open_file(char *path, bool is_readonly) {
     led.cur_buffer = create_buffer(path);
     led.mode = MODE_NONE;
     // XXX: clean up this mess
-    if (stat(path, &stbuf) != 0) {
-        // try creating file if it cannot stat it, exit if that also fails
-        if (!(file = fopen(path, "w+"))) goto open_file_fail;
-        if (stat(path, &stbuf) != 0) goto open_file_fail;
+    if (stat(path, &stbuf) == 0) {
+        if (!S_ISREG(stbuf.st_mode)) goto open_file_fail;
+        if (is_readonly || !(stbuf.st_mode & S_IWUSR)) led.cur_buffer->is_readonly = TRUE;
     }
-    if (!S_ISREG(stbuf.st_mode)) goto open_file_fail;
-    if (is_readonly || !(stbuf.st_mode & S_IWUSR)) led.cur_buffer->is_readonly = TRUE;
-    if (!file) file = fopen(path, "r");
+    if (!(file = fopen(path, "r"))) goto new_file;
     fseek(file, 0, SEEK_END);
     led.cur_buffer->text_cap = ALLOC_SIZE+(led.cur_buffer->text_sz = ftell(file));
     rewind(file);
@@ -228,13 +225,21 @@ open_file_fail:
     if (file) fclose(file);
     fprintf(stderr, "error: could not open file '%s'\n", path);
     exit_program();
+new_file:
+    led.cur_buffer->text_sz = 0;
+    led.cur_buffer->text = malloc(led.cur_buffer->text_cap = ALLOC_SIZE);
+    _count_lines(led.cur_buffer);
 }
 
 void write_file(struct buffer *buf, char *path) {
     if (buf->is_readonly) return;
     buf->last_change = buf->action;
     if (!path) path = buf->name;
-    FILE *file = fopen(path, "w");
+    FILE *file = fopen(path, "w+");
+    if (!file) {
+        buf->is_readonly = TRUE;
+        return;
+    }
     fwrite(buf->text, 1, buf->text_sz, file);
     fclose(file);
 }
@@ -906,9 +911,10 @@ int main(int argc, char **argv) {
         else if (!strcmp(argv[i], "-t") && i+1 < argc) opts.tab_width = atoi(argv[++i]);
         else if (argv[i][0] == '-') _usage(TRUE);
         else {
-            char name[PATH_MAX], cwd[PATH_MAX];
+            char name[PATH_MAX], cwd[PATH_MAX], *path;
             snprintf(name, PATH_MAX, "%s/%s", getcwd(cwd, PATH_MAX), argv[i]);
-            open_file(realpath(name, NULL), opts.is_readonly);
+            path = realpath(name, NULL);
+            open_file(path? path : strdup(name), opts.is_readonly);
         }
     }
     if (!led.num_buffers) _usage(FALSE);
