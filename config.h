@@ -6,6 +6,6 @@
 #define CFG_IGNORECASE   TRUE
 #define CFG_LINENUMBER   FALSE
 #define CFG_INVERTSTATUS TRUE
-#define CFG_EXPANDHOME   FALSE
+#define CFG_STATUSPATH   1
 
 #endif

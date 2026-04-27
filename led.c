@@ -576,18 +576,20 @@ static inline char *_mode_to_cstr(void) {
     }
 }
 
-static char *_expand_home(const char *name) {
-#if !CFG_EXPANDHOME
+static char *_expand_path(const char *name) {
+    char *path = (CFG_STATUSPATH < 2)? calloc(1, PATH_MAX) : strdup(name);
+#if CFG_STATUSPATH == 0
+    char *s;
+    if (!strcmp(name, "/")) return strdup(name);
+    for (s = (char*)name+strlen(name)-1; s > name && *s != '/'; --s);
+    strcat(path, s+1);
+#elif CFG_STATUSPATH == 1
     const char *home = getenv("HOME");
-    if (!strstr(name, home)) goto end;
-    char *path = malloc(PATH_MAX);
-    memset(path, 0, PATH_MAX);
-    path[0] = '~';
+    if (!strstr(name, home)) return path;
+    strcat(path, "~");
     strcat(path, name+strlen(home));
-    return path;
 #endif
-end:
-    return strdup(name);
+    return path;
 }
 
 static void _render_status(void) {
@@ -602,14 +604,15 @@ static void _render_status(void) {
     attroff(attr);
 #endif
     if (led.mode == MODE_OPEN || led.mode == MODE_OPEN_FIND) {
-        char *buf_name = _expand_home(led.picker.path);
+        // XXX: should i disallow omitting path here?
+        char *buf_name = _expand_path(led.picker.path);
         sprintf(status, "%s %d:%ld (%ld:%d %s) ",
             opts.is_readonly? " [RO]" : "",
             led.picker.cur+1, led.picker.num_files,
             (buf-led.buffers)+1, led.num_buffers, buf_name);
         free(buf_name);
     } else {
-        char *buf_name = _expand_home(buf->name);
+        char *buf_name = _expand_path(buf->name);
         sprintf(status, "%s %d %d:%ld (%ld:%d %s%s) ",
             buf->is_readonly? " [RO]" : "",
             buf->cur.cur-buf->lines[buf->cur.line].start+1,
