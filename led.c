@@ -242,6 +242,11 @@ void write_file(struct buffer *buf, char *path) {
     }
     fwrite(buf->text, 1, buf->text_sz, file);
     fclose(file);
+    char *full = realpath(path, NULL);
+    if (full) {
+        if (buf->name) free(buf->name);
+        buf->name = full;
+    }
 }
 
 bool is_selecting(struct buffer *buf) {
@@ -911,10 +916,8 @@ int main(int argc, char **argv) {
         else if (!strcmp(argv[i], "-t") && i+1 < argc) opts.tab_width = atoi(argv[++i]);
         else if (argv[i][0] == '-') _usage(TRUE);
         else {
-            char name[PATH_MAX], cwd[PATH_MAX], *path;
-            snprintf(name, PATH_MAX, "%s/%s", getcwd(cwd, PATH_MAX), argv[i]);
-            path = realpath(name, NULL);
-            open_file(path? path : strdup(name), opts.is_readonly);
+            char *path = realpath(argv[i], NULL);
+            open_file(path? path : strdup(argv[i]), opts.is_readonly);
         }
     }
     if (!led.num_buffers) _usage(FALSE);
