@@ -567,7 +567,6 @@ static inline char *_mode_to_cstr(void) {
     case MODE_EXIT: return "File has been modified, close anyway? (y/n)";
     case MODE_FIND: case MODE_OPEN_FIND: return "Find: ";
     case MODE_GOTO: return "Goto: ";
-    case MODE_OPEN: return "Open: ";
     case MODE_REPLACE: {
         sprintf(str, "Replace(%.*s): ", led.input_find.text_sz, led.input_find.text);
         return str;
@@ -902,7 +901,6 @@ e:  exit(0);
 
 int main(int argc, char **argv) {
     led.prgname = argv[0];
-    if (argc < 2) _usage(FALSE);
     opts.ignore_case = CFG_IGNORECASE;
     opts.show_numbers = CFG_LINENUMBER;
     opts.expand_tabs = CFG_EXPANDTAB;
@@ -923,7 +921,11 @@ int main(int argc, char **argv) {
             open_file(path? path : strdup(argv[i]), opts.is_readonly);
         }
     }
-    if (!led.num_buffers) _usage(FALSE);
+    if (!led.num_buffers) {
+        char buf[PATH_MAX];
+        led.mode = MODE_OPEN, led.cur_buffer = led.buffers;
+        picker_scan(&led.picker, getcwd(buf, PATH_MAX));
+    }
     _init_curses();
     getmaxyx(stdscr, led.wh, led.ww);
     if (led.ww < MIN_TERM_WIDTH || led.wh < MIN_TERM_HEIGHT) {
@@ -950,6 +952,7 @@ int main(int argc, char **argv) {
             mvprintw(0, 0, "terminal too small");
         }
         _update(led.cur_buffer);
+        if (led.mode < MODE_OPEN && !led.num_buffers) break;
     }
     exit_program();
     return 0;
