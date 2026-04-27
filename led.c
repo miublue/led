@@ -19,7 +19,6 @@ static struct {
 } opts;
 
 static struct {
-    char *prgname;
     int mode, ww, wh, num_buffers, max_buffers;
     struct buffer *buffers, *cur_buffer;
     struct inputbox input, input_find;
@@ -887,8 +886,8 @@ static void _update(struct buffer *buf) {
     } else update_fns[led.mode](buf, ch);
 }
 
-static void _usage(bool extended) {
-    fprintf(stderr, "usage: %s [-h|-r|-c|-l|-e|-t num] file [file...]\n", led.prgname);
+static void _usage(const char *prg, bool extended) {
+    fprintf(stderr, "usage: %s [-h|-r|-c|-l|-e|-t num] file [file...]\n", prg);
     if (!extended) goto e;
     fprintf(stderr, "    -h       show this help and exit\n");
     fprintf(stderr, "    -r       open in read-only mode\n");
@@ -896,26 +895,24 @@ static void _usage(bool extended) {
     fprintf(stderr, "    -l       toggle drawing line numbers\n");
     fprintf(stderr, "    -e       toggle expanding tabs to spaces\n");
     fprintf(stderr, "    -t num   indent using 'num' spaces\n");
-e:  exit(0);
+e:  exit(!extended);
 }
 
 int main(int argc, char **argv) {
-    led.prgname = argv[0];
     opts.ignore_case = CFG_IGNORECASE;
     opts.show_numbers = CFG_LINENUMBER;
     opts.expand_tabs = CFG_EXPANDTAB;
     opts.tab_width = CFG_TABWIDTH;
     opts.is_readonly = FALSE;
-    led.buffers = malloc((led.max_buffers = ALLOC_SIZE)*sizeof(struct buffer));
-    led.cur_buffer = NULL;
+    led.cur_buffer = led.buffers = malloc((led.max_buffers = ALLOC_SIZE)*sizeof(struct buffer));
     for (int i = 1; i < argc; ++i) {
-        if (!strcmp(argv[i], "-h")) _usage(TRUE);
-        else if (!strcmp(argv[i], "-r")) opts.is_readonly   = TRUE;
+        if (!strcmp(argv[i], "-h")) _usage(argv[0], TRUE);
+        else if (!strcmp(argv[i], "-r")) opts.is_readonly  = TRUE;
         else if (!strcmp(argv[i], "-c")) opts.ignore_case  = !opts.ignore_case;
         else if (!strcmp(argv[i], "-l")) opts.show_numbers = !opts.show_numbers;
         else if (!strcmp(argv[i], "-e")) opts.expand_tabs  = !opts.expand_tabs;
         else if (!strcmp(argv[i], "-t") && i+1 < argc) opts.tab_width = atoi(argv[++i]);
-        else if (argv[i][0] == '-') _usage(TRUE);
+        else if (argv[i][0] == '-') _usage(argv[0], FALSE);
         else {
             char *path = realpath(argv[i], NULL);
             open_file(path? path : strdup(argv[i]), opts.is_readonly);
@@ -923,7 +920,7 @@ int main(int argc, char **argv) {
     }
     if (!led.num_buffers) {
         char buf[PATH_MAX];
-        led.mode = MODE_OPEN, led.cur_buffer = led.buffers;
+        led.mode = MODE_OPEN;
         picker_scan(&led.picker, getcwd(buf, PATH_MAX));
     }
     _init_curses();
@@ -931,7 +928,7 @@ int main(int argc, char **argv) {
     if (led.ww < MIN_TERM_WIDTH || led.wh < MIN_TERM_HEIGHT) {
         _quit_curses();
         fprintf(stderr, "error: %s requires minimal terminal size of %dx%d\n",
-            led.prgname, MIN_TERM_WIDTH, MIN_TERM_HEIGHT);
+            argv[0], MIN_TERM_WIDTH, MIN_TERM_HEIGHT);
         return 1;
     }
     for (;;) {
