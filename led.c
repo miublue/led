@@ -577,7 +577,7 @@ static inline char *_mode_to_cstr(void) {
 }
 
 static char *_expand_home(const char *name) {
-#if !EXPAND_HOME
+#if !CFG_EXPANDHOME
     const char *home = getenv("HOME");
     if (!strstr(name, home)) goto end;
     char *path = malloc(PATH_MAX);
