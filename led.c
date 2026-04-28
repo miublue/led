@@ -604,7 +604,7 @@ static void _render_status(void) {
     if (led.mode == MODE_OPEN || led.mode == MODE_OPEN_FIND) {
         // XXX: should i disallow omitting path here?
         char *buf_name = _expand_path(led.picker.path);
-        sprintf(status, "%s %d:%ld (%ld:%d %s) ",
+        sprintf(status, "%s %d:%d (%ld:%d %s) ",
             opts.is_readonly? " [RO]" : "",
             led.picker.cur+1, led.picker.num_files,
             (buf-led.buffers)+1, led.num_buffers, buf_name);
@@ -868,7 +868,7 @@ static void _update_insert(struct buffer *buf, int ch) {
 }
 
 static void _update(struct buffer *buf) {
-    static const void (*update_fns[])(struct buffer*, int) = {
+    static void (*update_fns[])(struct buffer*, int) = {
         [MODE_EXIT]      = &_update_exit,
         [MODE_NONE]      = &_update_insert,
         [MODE_FIND]      = &_update_find,
