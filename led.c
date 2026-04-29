@@ -528,6 +528,9 @@ static void _render_line(struct buffer *buf, int l, int off, int lineoff) {
             buf->cur_y = l-buf->cur.off;
         }
         if (_is_selected(buf, i)) attr = A_REVERSE;
+        if ((led.mode == MODE_FIND || led.mode == MODE_REPLACE)
+                && (i < buf->sel.cur || i > buf->sel.sel))
+            attr |= A_DIM;
         attron(attr);
         mvprintw(l-buf->cur.off, sz, "%c", isspace(buf->text[i])? ' ' : buf->text[i]);
         if (buf->text[i] == '\t') {
@@ -662,10 +665,14 @@ static void _switch_buffer(void) {
     }
 }
 
-static void _switch_mode(int m) {
-    char buf[PATH_MAX];
+static void _switch_mode(struct buffer *buf, int m) {
+    char cwd[PATH_MAX];
     led.mode = m;
-    if (m == MODE_OPEN) picker_scan(&led.picker, getcwd(buf, PATH_MAX));
+    buf->sel.cur = 0, buf->sel.sel = buf->text_sz;
+    if (m == MODE_OPEN) picker_scan(&led.picker, getcwd(cwd, PATH_MAX));
+    else if (m == MODE_FIND && buf->cur.sel != buf->cur.cur)
+        buf->sel.cur = MIN(buf->cur.cur, buf->cur.sel),
+        buf->sel.sel = MAX(buf->cur.cur, buf->cur.sel);
     input_reset(&led.input);
 }
 
@@ -797,27 +804,22 @@ static void _update_insert(struct buffer *buf, int ch) {
         else close_buffer(buf);
         return;
     case CTRL('n'):
+        buf->sel.cur = 0, buf->sel.sel = buf->text_sz;
         if (led.input.text_sz) _find_next(buf, led.input);
-        return;
+        break;
     case CTRL('x'):
         copy_selection(buf);
         remove_selection(buf);
         break;
     case CTRL('c'):     copy_selection(buf); break;
     case CTRL('v'):     paste_text(buf); break;
-    case CTRL('o'):     _switch_mode(MODE_OPEN); break;
+    case CTRL('o'):     _switch_mode(buf, MODE_OPEN); break;
     case CTRL('s'):     write_file(buf, buf->name); break;
     case CTRL('z'):     undo_action(buf); break;
     case CTRL('y'):     redo_action(buf); break;
-    case CTRL('g'):     _switch_mode(MODE_GOTO); break;
+    case CTRL('g'):     _switch_mode(buf, MODE_GOTO); break;
     case CTRL('r'):
-    case CTRL('f'):
-        _switch_mode(MODE_FIND);
-        if (buf->cur.sel != buf->cur.cur)
-            buf->sel.cur = MIN(buf->cur.cur, buf->cur.sel),
-            buf->sel.sel = MAX(buf->cur.cur, buf->cur.sel);
-        else buf->sel.cur = 0, buf->sel.sel = buf->text_sz;
-        break;
+    case CTRL('f'):     _switch_mode(buf, MODE_FIND); break;
     case CTRL('w'):     return _switch_buffer();
     case KEY_LEFT:      move_left(buf); break;
     case KEY_SLEFT:     return move_left(buf);
