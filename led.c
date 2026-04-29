@@ -404,6 +404,7 @@ static char *_casestrstr(const char *haystack, const char *needle) {
 
 void find_string(struct buffer *buf, char *to_find) {
     char *str = NULL, c = buf->text[buf->search_range.end+1];
+    int cur_off = buf->cur.off;
     buf->text[buf->search_range.end+1] = 0;
     if ((str = _casestrstr(buf->text+buf->cur.cur+1, to_find))) {
         while (buf->text+buf->cur.cur != str && buf->cur.cur < buf->search_range.end) move_right(buf);
@@ -415,7 +416,7 @@ void find_string(struct buffer *buf, char *to_find) {
     buf->cur.cur += strlen(to_find)-1;
     const int halfh = led.wh/2;
     int off = buf->cur.off + halfh;
-    if (buf->cur.line-off > 0 && off+halfh+1 < buf->lines_sz)
+    if (cur_off != buf->cur.off && buf->cur.line-off > 0 && off+halfh+1 < buf->lines_sz)
         buf->cur.off = off;
 end:
     buf->text[buf->search_range.end+1] = c;
@@ -813,7 +814,7 @@ static void _update_insert(struct buffer *buf, int ch) {
         return;
     case CTRL('n'):
         if (led.input.text_sz) _find_next(buf, led.input);
-        break;
+        return;
     case CTRL('x'):
         copy_selection(buf);
         remove_selection(buf);
