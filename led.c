@@ -403,15 +403,18 @@ static char *_casestrstr(const char *haystack, const char *needle) {
 
 // XXX: move line to the center of the screen on find
 void find_string(struct buffer *buf, char *to_find) {
-    char *str = NULL;
+    char *str = NULL, c = buf->text[buf->sel.sel+1];
+    buf->text[buf->sel.sel+1] = 0;
     if ((str = _casestrstr(buf->text+buf->cur.cur+1, to_find))) {
-        while (buf->text+buf->cur.cur != str && buf->cur.cur < buf->text_sz) move_right(buf);
-    } else if ((str = _casestrstr(buf->text, to_find))) {
-        buf->cur = (struct cursor) {0};
-        while (buf->text+buf->cur.cur != str && buf->cur.cur < buf->text_sz) move_right(buf);
-    } else return;
+        while (buf->text+buf->cur.cur != str && buf->cur.cur < buf->sel.sel) move_right(buf);
+    } else if ((str = _casestrstr(buf->text+buf->sel.cur, to_find))) {
+        while (buf->cur.cur > buf->sel.cur) move_left(buf);
+        while (buf->text+buf->cur.cur != str && buf->cur.cur < buf->sel.sel) move_right(buf);
+    } else goto end;
     buf->cur.sel = buf->cur.cur;
     buf->cur.cur += strlen(to_find)-1;
+end:
+    buf->text[buf->sel.sel+1] = c;
 }
 
 void replace_string(struct buffer *buf, char *to_replace, char *str) {
@@ -808,7 +811,13 @@ static void _update_insert(struct buffer *buf, int ch) {
     case CTRL('y'):     redo_action(buf); break;
     case CTRL('g'):     _switch_mode(MODE_GOTO); break;
     case CTRL('r'):
-    case CTRL('f'):     _switch_mode(MODE_FIND); break;
+    case CTRL('f'):
+        _switch_mode(MODE_FIND);
+        if (buf->cur.sel != buf->cur.cur)
+            buf->sel.cur = MIN(buf->cur.cur, buf->cur.sel),
+            buf->sel.sel = MAX(buf->cur.cur, buf->cur.sel);
+        else buf->sel.cur = 0, buf->sel.sel = buf->text_sz;
+        break;
     case CTRL('w'):     return _switch_buffer();
     case KEY_LEFT:      move_left(buf); break;
     case KEY_SLEFT:     return move_left(buf);
@@ -865,6 +874,8 @@ static void _update_insert(struct buffer *buf, int ch) {
         break;
     }
     buf->cur.sel = buf->cur.cur;
+    if (led.mode != MODE_FIND && led.mode != MODE_REPLACE)
+        buf->sel.cur = 0, buf->sel.sel = buf->text_sz;
 }
 
 static void _update(struct buffer *buf) {
@@ -879,7 +890,7 @@ static void _update(struct buffer *buf) {
     };
     int ch = getch();
     if (ch == KEY_RESIZE) {
-        getmaxyx(stdscr, led.wh, led.ww);;
+        getmaxyx(stdscr, led.wh, led.ww);
         while (buf->cur.line-buf->cur.off < 0) move_down(buf);
         while (buf->cur.line-buf->cur.off >= led.wh-1) move_up(buf);
         buf->cur.sel = buf->cur.cur;
