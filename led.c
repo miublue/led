@@ -596,7 +596,7 @@ static char *_expand_path(const char *name) {
     strcat(path, s+1);
 #elif CFG_STATUSPATH == 1
     const char *home = getenv("HOME");
-    if (!strstr(name, home)) return path;
+    if (!strstr(name, home)) return strdup(name);
     strcat(path, "~");
     strcat(path, name+strlen(home));
 #endif
