@@ -402,6 +402,13 @@ static char *_casestrstr(const char *haystack, const char *needle) {
     return strstr(haystack, needle);
 }
 
+static inline void _center_line(struct buffer *buf, const int last_off) {
+    const int halfh = led.wh/2;
+    int off = buf->cur.off + halfh;
+    if (last_off != buf->cur.off && buf->cur.line-off > 0 && off+halfh+1 < buf->lines_sz)
+        buf->cur.off = off;
+}
+
 void find_string(struct buffer *buf, char *to_find) {
     char *str = NULL, c = buf->text[buf->search_range.end+1];
     int cur_off = buf->cur.off;
@@ -414,10 +421,7 @@ void find_string(struct buffer *buf, char *to_find) {
     } else goto end;
     buf->cur.sel = buf->cur.cur;
     buf->cur.cur += strlen(to_find)-1;
-    const int halfh = led.wh/2;
-    int off = buf->cur.off + halfh;
-    if (cur_off != buf->cur.off && buf->cur.line-off > 0 && off+halfh+1 < buf->lines_sz)
-        buf->cur.off = off;
+    _center_line(buf, cur_off);
 end:
     buf->text[buf->search_range.end+1] = c;
 }
@@ -438,9 +442,11 @@ void replace_string(struct buffer *buf, char *to_replace, char *str) {
 
 void goto_line(struct buffer *buf, long line) {
     if (line == 0) return;
+    int cur_off = buf->cur.off;
     buf->cur.cur = buf->cur.off = buf->cur.line = 0;
     for (int i = 0; i < MIN(line-1, buf->lines_sz); ++i) move_down(buf);
     buf->cur.sel = buf->cur.cur;
+    _center_line(buf, cur_off);
 }
 
 static void _goto_start_of_selection(struct buffer *buf) {
