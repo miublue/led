@@ -593,7 +593,7 @@ static char *_expand_path(const char *name) {
     char *s;
     if (!strcmp(name, "/")) return strdup(name);
     for (s = (char*)name+strlen(name)-1; s > name && *s != '/'; --s);
-    strcat(path, s+1);
+    strcat(path, s + ((*s == '/')? 1 : 0));
 #elif CFG_STATUSPATH == 1
     const char *home = getenv("HOME");
     if (!strstr(name, home)) return strdup(name);
