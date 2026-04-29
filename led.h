@@ -32,8 +32,8 @@ struct buffer {
     char *name, *text;
     size_t text_sz, text_cap, lines_sz, lines_cap, actions_sz, actions_cap;
     int action, last_change, is_undo, is_readonly, cur_x, cur_y;
-    struct cursor cur, sel;
-    struct line *lines;
+    struct cursor cur;
+    struct line *lines, search_range;
     struct action *actions;
 };
 

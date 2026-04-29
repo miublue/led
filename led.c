@@ -218,6 +218,7 @@ void open_file(char *path, bool is_readonly) {
     if (!led.cur_buffer->text) goto open_file_fail;
     if (fread(led.cur_buffer->text, 1, led.cur_buffer->text_sz, file) != led.cur_buffer->text_sz) goto open_file_fail;
     _count_lines(led.cur_buffer);
+    led.cur_buffer->search_range = (struct line) { .start = 0, .end = led.cur_buffer->text_sz };
     fclose(file);
     return;
 open_file_fail:
@@ -401,20 +402,23 @@ static char *_casestrstr(const char *haystack, const char *needle) {
     return strstr(haystack, needle);
 }
 
-// XXX: move line to the center of the screen on find
 void find_string(struct buffer *buf, char *to_find) {
-    char *str = NULL, c = buf->text[buf->sel.sel+1];
-    buf->text[buf->sel.sel+1] = 0;
+    char *str = NULL, c = buf->text[buf->search_range.end+1];
+    buf->text[buf->search_range.end+1] = 0;
     if ((str = _casestrstr(buf->text+buf->cur.cur+1, to_find))) {
-        while (buf->text+buf->cur.cur != str && buf->cur.cur < buf->sel.sel) move_right(buf);
-    } else if ((str = _casestrstr(buf->text+buf->sel.cur, to_find))) {
-        while (buf->cur.cur > buf->sel.cur) move_left(buf);
-        while (buf->text+buf->cur.cur != str && buf->cur.cur < buf->sel.sel) move_right(buf);
+        while (buf->text+buf->cur.cur != str && buf->cur.cur < buf->search_range.end) move_right(buf);
+    } else if ((str = _casestrstr(buf->text+buf->search_range.start, to_find))) {
+        while (buf->cur.cur > buf->search_range.start) move_left(buf);
+        while (buf->text+buf->cur.cur != str && buf->cur.cur < buf->search_range.end) move_right(buf);
     } else goto end;
     buf->cur.sel = buf->cur.cur;
     buf->cur.cur += strlen(to_find)-1;
+    const int halfh = led.wh/2;
+    int off = buf->cur.off + halfh;
+    if (buf->cur.line-off > 0 && off+halfh+1 < buf->lines_sz)
+        buf->cur.off = off;
 end:
-    buf->text[buf->sel.sel+1] = c;
+    buf->text[buf->search_range.end+1] = c;
 }
 
 void replace_string(struct buffer *buf, char *to_replace, char *str) {
@@ -423,7 +427,11 @@ void replace_string(struct buffer *buf, char *to_replace, char *str) {
     if (!strncmp(buf->text+m, to_replace, rep_sz)) {
         buf->cur.cur = m;
         remove_text(buf, FALSE, rep_sz);
-        if (str_sz) insert_text(buf, str, str_sz);
+        buf->search_range.end -= rep_sz;
+        if (str_sz) {
+            insert_text(buf, str, str_sz);
+            buf->search_range.end += str_sz;
+        }
     }
 }
 
@@ -528,9 +536,7 @@ static void _render_line(struct buffer *buf, int l, int off, int lineoff) {
             buf->cur_y = l-buf->cur.off;
         }
         if (_is_selected(buf, i)) attr = A_REVERSE;
-        if ((led.mode == MODE_FIND || led.mode == MODE_REPLACE)
-                && (i < buf->sel.cur || i > buf->sel.sel))
-            attr |= A_DIM;
+        if (i < buf->search_range.start || i > buf->search_range.end) attr |= A_DIM;
         attron(attr);
         mvprintw(l-buf->cur.off, sz, "%c", isspace(buf->text[i])? ' ' : buf->text[i]);
         if (buf->text[i] == '\t') {
@@ -668,11 +674,13 @@ static void _switch_buffer(void) {
 static void _switch_mode(struct buffer *buf, int m) {
     char cwd[PATH_MAX];
     led.mode = m;
-    buf->sel.cur = 0, buf->sel.sel = buf->text_sz;
+    buf->search_range = (struct line) { .start = 0, .end = buf->text_sz };
     if (m == MODE_OPEN) picker_scan(&led.picker, getcwd(cwd, PATH_MAX));
     else if (m == MODE_FIND && buf->cur.sel != buf->cur.cur)
-        buf->sel.cur = MIN(buf->cur.cur, buf->cur.sel),
-        buf->sel.sel = MAX(buf->cur.cur, buf->cur.sel);
+        buf->search_range = (struct line) {
+            .start = MIN(buf->cur.cur, buf->cur.sel),
+            .end = MAX(buf->cur.cur, buf->cur.sel),
+        };
     input_reset(&led.input);
 }
 
@@ -804,7 +812,6 @@ static void _update_insert(struct buffer *buf, int ch) {
         else close_buffer(buf);
         return;
     case CTRL('n'):
-        buf->sel.cur = 0, buf->sel.sel = buf->text_sz;
         if (led.input.text_sz) _find_next(buf, led.input);
         break;
     case CTRL('x'):
@@ -877,7 +884,7 @@ static void _update_insert(struct buffer *buf, int ch) {
     }
     buf->cur.sel = buf->cur.cur;
     if (led.mode != MODE_FIND && led.mode != MODE_REPLACE)
-        buf->sel.cur = 0, buf->sel.sel = buf->text_sz;
+        buf->search_range = (struct line) { .start = 0, .end = buf->text_sz };
 }
 
 static void _update(struct buffer *buf) {
