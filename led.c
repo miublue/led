@@ -398,8 +398,7 @@ void unindent(struct buffer *buf) {
 }
 
 static char *_casestrstr(const char *haystack, const char *needle) {
-    if (opts.ignore_case) return strcasestr(haystack, needle);
-    return strstr(haystack, needle);
+    return (opts.ignore_case)? strcasestr(haystack, needle) : strstr(haystack, needle);
 }
 
 static inline void _center_line(struct buffer *buf, const int last_off) {
@@ -429,7 +428,7 @@ end:
 void replace_string(struct buffer *buf, char *to_replace, char *str) {
     int m = MIN(buf->cur.cur, buf->cur.sel);
     int rep_sz = strlen(to_replace), str_sz = strlen(str);
-    if (!strncmp(buf->text+m, to_replace, rep_sz)) {
+    if (_casestrstr(buf->text+m, to_replace) == buf->text+m) {
         buf->cur.cur = m;
         remove_text(buf, FALSE, rep_sz);
         buf->search_range.end -= rep_sz;
