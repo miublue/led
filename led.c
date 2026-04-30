@@ -87,10 +87,22 @@ static inline void _undo_backspace(struct buffer *buf, struct action *act) {
     insert_text(buf, text, act->text_sz);
 }
 
+static inline void _center_line(struct buffer *buf, const int last_off) {
+    int halfh = led.wh/2, off = buf->cur.off + halfh;
+    if (last_off != buf->cur.off && buf->cur.line-off > 0 && off+halfh+1 < buf->lines_sz)
+        buf->cur.off = off;
+}
+
+static inline void _goto_action_pos(struct buffer *buf, struct action *act) {
+    int cur_off = buf->cur.off;
+    buf->cur = act->cur;
+    _center_line(buf, cur_off);
+}
+
 void undo_action(struct buffer *buf) {
     if (buf->action == -1 || buf->is_readonly) return;
     struct action *act = &buf->actions[buf->action--];
-    buf->cur = act->cur;
+    _goto_action_pos(buf, act);
     buf->is_undo = TRUE;
     switch (act->type) {
     case ACTION_INSERT: _undo_insert(buf, act); break;
@@ -104,7 +116,7 @@ void undo_action(struct buffer *buf) {
 void redo_action(struct buffer *buf) {
     if (buf->action+1 == buf->actions_sz || buf->is_readonly) return;
     struct action *act = &buf->actions[++buf->action];
-    buf->cur = act->cur;
+    _goto_action_pos(buf, act);
     buf->is_undo = TRUE;
     switch (act->type) {
     case ACTION_INSERT: _undo_delete(buf, act); break;
@@ -172,8 +184,7 @@ struct buffer *create_buffer(char *name) {
     if (led.num_buffers >= led.max_buffers)
         led.buffers = realloc(led.buffers, (led.max_buffers *= 1.5)*sizeof(struct buffer));
     struct buffer *buf = &led.buffers[led.num_buffers++];
-    buf->text = NULL;
-    buf->name = name;
+    buf->text = NULL, buf->name = name;
     buf->lines = malloc((buf->lines_cap = ALLOC_SIZE)*sizeof(struct line));
     buf->actions = malloc((buf->actions_cap = ALLOC_SIZE)*sizeof(struct action));
     buf->text_sz = buf->text_cap = buf->lines_sz = buf->actions_sz = 0;
@@ -399,13 +410,6 @@ void unindent(struct buffer *buf) {
 
 static char *_casestrstr(const char *haystack, const char *needle) {
     return (opts.ignore_case)? strcasestr(haystack, needle) : strstr(haystack, needle);
-}
-
-static inline void _center_line(struct buffer *buf, const int last_off) {
-    const int halfh = led.wh/2;
-    int off = buf->cur.off + halfh;
-    if (last_off != buf->cur.off && buf->cur.line-off > 0 && off+halfh+1 < buf->lines_sz)
-        buf->cur.off = off;
 }
 
 void find_string(struct buffer *buf, char *to_find) {
