@@ -22,7 +22,6 @@ void input_set(struct inputbox *ib, char *text, int sz);
 #include <string.h>
 #include <ctype.h>
 #include <ncurses.h>
-#include "inputbox.h"
 
 static inline void _input_insert_char(struct inputbox *ib, int c) {
     ib->text_sz++;
