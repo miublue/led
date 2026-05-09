@@ -11,6 +11,10 @@
 #define MIN_TERM_WIDTH 30
 #define MIN_TERM_HEIGHT 5
 
+#define STATUS_FILENAME 0 /* draw only file name */
+#define STATUS_FILEPATH 1 /* draw shortened file path */
+#define STATUS_FULLPATH 2 /* draw full file path with tilde expansion */
+
 struct line { uint32_t start, end; };
 
 struct cursor {
@@ -19,7 +23,7 @@ struct cursor {
     // (so maybe we could have multiple cursors later?)
 };
 
-enum { MODE_NONE, MODE_EXIT, MODE_FIND, MODE_REPLACE, MODE_GOTO, MODE_OPEN, MODE_OPEN_FIND, };
+enum { MODE_NONE, MODE_EXIT, MODE_FIND, MODE_REPLACE, MODE_GOTO, MODE_PICKER, MODE_BUFFERS };
 
 struct action {
     enum { ACTION_INSERT, ACTION_DELETE, ACTION_BACKSPACE } type;
@@ -74,5 +78,6 @@ void paste_text(struct buffer *buf);
 void find_string(struct buffer *buf, char *to_find);
 void replace_string(struct buffer *buf, char *to_replace, char *str);
 void goto_line(struct buffer *buf, long line);
+char *get_filename(const char *name);
 
 #endif
