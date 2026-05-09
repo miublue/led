@@ -586,7 +586,7 @@ static inline char *_mode_to_cstr(void) {
     static char str[ALLOC_SIZE] = {0};
     switch (led.mode) {
     case MODE_EXIT: return "File has been modified, close anyway? (y/n)";
-    case MODE_FIND: case MODE_OPEN_FIND: return "Find: ";
+    case MODE_FIND: return "Find: ";
     case MODE_GOTO: return "Goto: ";
     case MODE_REPLACE: {
         sprintf(str, "Replace(%.*s): ", led.input_find.text_sz, led.input_find.text);
@@ -596,14 +596,14 @@ static inline char *_mode_to_cstr(void) {
     }
 }
 
-static char *_expand_path(const char *name) {
-    char *path = (CFG_STATUSPATH < 2)? calloc(1, PATH_MAX) : strdup(name);
-#if CFG_STATUSPATH == 0
+char *get_filename(const char *name) {
+    char *path = (CFG_STATUSPATH < STATUS_FULLPATH)? calloc(1, PATH_MAX) : strdup(name);
+#if CFG_STATUSPATH == STATUS_FILENAME
     char *s;
     if (!strcmp(name, "/")) return strdup(name);
     for (s = (char*)name+strlen(name)-1; s > name && *s != '/'; --s);
     strcat(path, s + ((*s == '/')? 1 : 0));
-#elif CFG_STATUSPATH == 1
+#elif CFG_STATUSPATH == STATUS_FILEPATH
     const char *home = getenv("HOME");
     if (!strstr(name, home)) return strdup(name);
     strcat(path, "~");
@@ -621,29 +621,17 @@ static void _render_status(void) {
     attron(attr);
     memset(status, ' ', led.ww);
     mvprintw(led.wh-1, 0, "%s", status);
-    attroff(attr);
 #endif
-    if (led.mode == MODE_OPEN || led.mode == MODE_OPEN_FIND) {
-        // XXX: should i disallow omitting path here?
-        char *buf_name = _expand_path(led.picker.path);
-        sprintf(status, "%s %d:%d (%ld:%d %s) ",
-            opts.is_readonly? " [RO]" : "",
-            led.picker.cur+1, led.picker.num_files,
-            (buf-led.buffers)+1, led.num_buffers, buf_name);
-        free(buf_name);
-    } else {
-        char *buf_name = _expand_path(buf->name);
-        sprintf(status, "%s %d %d:%ld (%ld:%d %s%s) ",
-            buf->is_readonly? " [RO]" : "",
-            buf->cur.cur-buf->lines[buf->cur.line].start+1,
-            buf->cur.line+1, buf->lines_sz,
-            (buf-led.buffers)+1, led.num_buffers, buf_name,
-            buf->last_change != buf->action? "*" : "");
-        free(buf_name);
-    }
-    attron(attr);
+    char *buf_name = get_filename(buf->name);
+    sprintf(status, "%s %d %d:%ld (%ld:%d %s%s) ",
+        buf->is_readonly? " [RO]" : "",
+        buf->cur.cur-buf->lines[buf->cur.line].start+1,
+        buf->cur.line+1, buf->lines_sz,
+        (buf-led.buffers)+1, led.num_buffers, buf_name,
+        buf->last_change != buf->action? "*" : "");
+    free(buf_name);
     mvprintw(led.wh-1, led.ww-strlen(status), "%s", status);
-    if (led.mode != MODE_NONE && led.mode != MODE_OPEN) {
+    if (led.mode != MODE_NONE && led.mode < MODE_PICKER) {
         const char *astr = _mode_to_cstr();
         mvprintw(led.wh-1, 0, "%s", astr);
         const int s = strlen(astr), cap = s+strlen(status), at = CFG_INVERTSTATUS? A_NORMAL : A_REVERSE;
@@ -681,11 +669,23 @@ static void _switch_buffer(void) {
     }
 }
 
+static void _list_buffers(void) {
+    picker_reset(&led.picker);
+    strcpy(led.picker.path, "*BUFFERS*");
+    for (int i = 0; i < led.num_buffers; ++i) {
+        led.picker.files[led.picker.num_files++] = (struct filepicker_entry) {
+            .name = strdup(led.buffers[i].name),
+            .is_dir = 0,
+        };
+    }
+}
+
 static void _switch_mode(struct buffer *buf, int m) {
     char cwd[PATH_MAX];
     led.mode = m;
     buf->search_range = (struct line) { .start = 0, .end = buf->text_sz };
-    if (m == MODE_OPEN) picker_scan(&led.picker, getcwd(cwd, PATH_MAX));
+    if (m == MODE_PICKER) picker_scan(&led.picker, getcwd(cwd, PATH_MAX));
+    else if (m == MODE_BUFFERS) _list_buffers();
     else if (m == MODE_FIND && buf->cur.sel != buf->cur.cur)
         buf->search_range = (struct line) {
             .start = MIN(buf->cur.cur, buf->cur.sel),
@@ -753,52 +753,21 @@ static void _update_goto(struct buffer *buf, int ch) {
     input_update(&led.input, ch);
 }
 
-static inline void _update_open_find(void) {
-    char *text = strndup(led.input.text, led.input.text_sz);
-    int f = picker_find(&led.picker, text);
-    if (f != -1) {
-        for (led.picker.cur = led.picker.off = 0; led.picker.cur < f; led.picker.cur++)
-            if (led.picker.cur-led.picker.off >= led.wh-2) ++led.picker.off;
-    }
-    free(text);
-}
-
-static void _update_open(struct buffer *buf, int ch) {
+static void _update_picker(struct buffer *buf, int ch) {
     if (led.picker.num_files <= 0) {
         led.mode = MODE_NONE;
         return;
     }
-    if (led.mode == MODE_OPEN_FIND) {
-        if (ch == CTRL('q') || ch == CTRL('c')) {
-            led.mode = MODE_OPEN;
-            return;
-        }
-        if (ch == '\n' && led.input.text_sz) {
-            _update_open_find();
-            led.mode = MODE_OPEN;
-        }
-        input_update(&led.input, ch);
-        return;
-    }
-    if (_update_none(ch)) return;
-    if (ch == CTRL('f')) {
-        input_reset(&led.input);
-        led.mode = MODE_OPEN_FIND;
-        return;
-    } else if (ch == CTRL('n') && led.input.text_sz) {
-        _update_open_find();
-        return;
-    } else if (ch == '\n') {
+    if (!led.picker.is_searching && _update_none(ch)) return;
+    if (!led.picker.is_searching && ch == '\n') {
         led.mode = MODE_NONE;
         char name[PATH_MAX];
-        snprintf(name, PATH_MAX, "%s/%s", led.picker.path, led.picker.files[led.picker.cur]->d_name);
+        struct filepicker_entry *sel_file = &led.picker.files[led.picker.cur];
+        snprintf(name, PATH_MAX, "%s/%s", led.picker.path, sel_file->name);
         char *path = realpath(name, NULL);
-        struct stat sb;
-        if (stat(path, &sb) != 0) return;
-        if (S_ISDIR(sb.st_mode)) {
-            if (picker_scan(&led.picker, path) > 0)
-                led.mode = MODE_OPEN;
-            free(path);
+        if (sel_file->is_dir) {
+            if (picker_scan(&led.picker, path) > 0) led.mode = MODE_PICKER;
+            free(path); /* free path here because it's not a buffer name */
             return;
         }
         for (int i = 0; i < led.num_buffers; ++i) {
@@ -809,6 +778,25 @@ static void _update_open(struct buffer *buf, int ch) {
         }
         open_file(path, opts.is_readonly);
         return;
+    }
+    picker_update(&led.picker, ch);
+}
+
+static void _update_buffers(struct buffer *buf, int ch) {
+    if (led.picker.num_files <= 0) {
+        led.mode = MODE_NONE;
+        return;
+    }
+    if (!led.picker.is_searching && _update_none(ch)) return;
+    if (!led.picker.is_searching && ch == '\n') {
+        led.mode = MODE_NONE;
+        struct filepicker_entry *sel_buf = &led.picker.files[led.picker.cur];
+        for (int i = 0; i < led.num_buffers; ++i) {
+            if (!strcmp(led.buffers[i].name, sel_buf->name)) {
+                led.cur_buffer = &led.buffers[i];
+                return;
+            }
+        }
     }
     picker_update(&led.picker, ch);
 }
@@ -830,7 +818,8 @@ static void _update_insert(struct buffer *buf, int ch) {
         break;
     case CTRL('c'):     copy_selection(buf); break;
     case CTRL('v'):     paste_text(buf); break;
-    case CTRL('o'):     _switch_mode(buf, MODE_OPEN); break;
+    case CTRL('o'):     _switch_mode(buf, MODE_PICKER); break;
+    case CTRL('b'):     _switch_mode(buf, MODE_BUFFERS); break;
     case CTRL('s'):     write_file(buf, buf->name); break;
     case CTRL('z'):     undo_action(buf); break;
     case CTRL('y'):     redo_action(buf); break;
@@ -904,8 +893,8 @@ static void _update(struct buffer *buf) {
         [MODE_FIND]      = &_update_find,
         [MODE_REPLACE]   = &_update_replace,
         [MODE_GOTO]      = &_update_goto,
-        [MODE_OPEN]      = &_update_open,
-        [MODE_OPEN_FIND] = &_update_open,
+        [MODE_PICKER]    = &_update_picker,
+        [MODE_BUFFERS]   = &_update_buffers,
     };
     int ch = getch();
     if (ch == KEY_RESIZE) {
@@ -950,7 +939,7 @@ int main(int argc, char **argv) {
     }
     if (!led.num_buffers) {
         char buf[PATH_MAX];
-        led.mode = MODE_OPEN;
+        led.mode = MODE_PICKER;
         picker_scan(&led.picker, getcwd(buf, PATH_MAX));
     }
     _init_curses();
@@ -965,21 +954,18 @@ int main(int argc, char **argv) {
         if (led.ww >= MIN_TERM_WIDTH && led.wh >= MIN_TERM_HEIGHT) {
             curs_set(0);
             erase();
-            if (led.mode == MODE_OPEN || led.mode == MODE_OPEN_FIND) {
-                picker_render(&led.picker, 0, 0, led.ww-1, led.wh-1);
-                _render_status();
-            } else {
+            if (led.mode < MODE_PICKER) {
                 _render_text(led.cur_buffer);
                 _render_status();
                 if (!is_selecting(led.cur_buffer)) curs_set(1);
                 move(led.cur_buffer->cur_y, led.cur_buffer->cur_x);
-            }
+            } else picker_render(&led.picker);
         } else {
             erase();
             mvprintw(0, 0, "terminal too small");
         }
         _update(led.cur_buffer);
-        if (led.mode < MODE_OPEN && !led.num_buffers) break;
+        if (led.mode != MODE_PICKER && !led.num_buffers) break;
     }
     exit_program();
     return 0;
