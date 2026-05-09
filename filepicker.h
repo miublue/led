@@ -11,11 +11,7 @@
 #define FILEPICKER_FILES_MAX 1024
 #endif
 
-struct filepicker_entry {
-    int is_dir;
-    char *name;
-};
-
+struct filepicker_entry { char is_dir, *name; };
 struct filepicker {
     char path[FILEPICKER_PATH_MAX];
     struct filepicker_entry files[FILEPICKER_FILES_MAX];
@@ -46,8 +42,8 @@ int picker_scan(struct filepicker *fp, char *path) {
     if (path) strcpy(fp->path, path);
     struct dirent **dirs, **files;
     int num_dirs, num_files;
-    num_dirs = scandir(path, &dirs, _picker_filter_dirs, alphasort);
-    num_files = scandir(path, &files, _picker_filter_files, alphasort);
+    num_dirs = scandir(fp->path, &dirs, _picker_filter_dirs, alphasort);
+    num_files = scandir(fp->path, &files, _picker_filter_files, alphasort);
     for (int i = 0; i < num_dirs; ++i) {
         if (strcmp(dirs[i]->d_name, ".") == 0) goto f;
         if (fp->num_files < FILEPICKER_FILES_MAX) {
@@ -172,7 +168,7 @@ void picker_render(struct filepicker *fp) {
         const int cap = strlen(str)+strlen(status), inp_attr = CFG_INVERTSTATUS? A_NORMAL : A_REVERSE;
         const int w = cap+5 > fp->ww? fp->ww-strlen(str) : fp->ww-cap;
         mvprintw(fp->wh-1, 0, str);
-        input_render(&fp->input, 6, fp->wh-1, w, inp_attr);
+        input_render(&fp->input, strlen(str), fp->wh-1, w, inp_attr);
     }
     attroff(attr);
 }
