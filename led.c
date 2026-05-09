@@ -507,25 +507,18 @@ void paste_text(struct buffer *buf) {
     free(text);
 }
 
-static inline struct line _get_selection_line_range(struct buffer *buf) {
-    struct line lines = {0};
+static inline void _operate_on_lines(struct buffer *buf, void (*fn)(struct buffer*)) {
     struct line sel = get_selection(buf);
     _goto_start_of_selection(buf);
-    for (int i = buf->cur.line; i < buf->lines_sz; ++i) {
-        const struct line *line = &buf->lines[i];
-        if (sel.start >= line->start && sel.start <= line->end)
-            lines.start = i;
-        if (sel.end >= line->start && sel.end <= line->end) {
-            lines.end = i;
+    for (buf->cur.sel = sel.end; buf->cur.line < buf->lines_sz; move_down(buf)) {
+        const struct line *line = &buf->lines[buf->cur.line];
+        const int prev = line->end - line->start;
+        fn(buf);
+        buf->cur.sel += (line->end - line->start) - prev;
+        if (buf->cur.sel >= line->start && buf->cur.sel <= line->end)
             break;
-        }
     }
-    return lines;
-}
-
-static inline void _operate_on_lines(struct buffer *buf, void (*fn)(struct buffer*)) {
-    struct line range = _get_selection_line_range(buf);
-    for (; buf->cur.line < range.end; move_down(buf)) fn(buf);
+    while (buf->cur.cur > sel.start) move_left(buf);
 }
 
 void indent_selection(struct buffer *buf) { _operate_on_lines(buf, indent); }
@@ -849,11 +842,11 @@ static void _update_insert(struct buffer *buf, int ch) {
         if (is_selecting(buf)) remove_selection(buf);
         insert_char(buf, '\n'); break;
     case '\t':
-        if (is_selecting(buf)) indent_selection(buf);
-        indent(buf); break;
+        if (is_selecting(buf)) return indent_selection(buf);
+        else indent(buf); break;
     case KEY_BTAB:
-        if (is_selecting(buf)) unindent_selection(buf);
-        unindent(buf); break;
+        if (is_selecting(buf)) return unindent_selection(buf);
+        else unindent(buf); break;
     case KEY_DC:
         if (is_selecting(buf)) remove_selection(buf);
         else remove_char(buf, FALSE);
