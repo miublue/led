@@ -78,6 +78,6 @@ void paste_text(struct buffer *buf);
 void find_string(struct buffer *buf, char *to_find);
 void replace_string(struct buffer *buf, char *to_replace, char *str);
 void goto_line(struct buffer *buf, long line);
-char *get_filename(const char *name);
+char *get_filename(const char *name, int fmt_type);
 
 #endif

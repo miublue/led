@@ -88,6 +88,7 @@ static inline void _undo_backspace(struct buffer *buf, struct action *act) {
 }
 
 static inline void _center_line(struct buffer *buf, const int last_off) {
+    // XXX: centering line kinda sucks sometimes
     int halfh = led.wh/2, off = buf->cur.off + halfh;
     if (last_off != buf->cur.off && buf->cur.line-off > 0 && off+halfh+1 < buf->lines_sz)
         buf->cur.off = off;
@@ -518,6 +519,7 @@ static inline void _operate_on_lines(struct buffer *buf, void (*fn)(struct buffe
         if (buf->cur.sel >= line->start && buf->cur.sel <= line->end)
             break;
     }
+    // XXX: move cursor to where it was before instead of beginning of selection
     while (buf->cur.cur > sel.start) move_left(buf);
 }
 
@@ -589,19 +591,25 @@ static inline char *_mode_to_cstr(void) {
     }
 }
 
-char *get_filename(const char *name) {
-    char *path = (CFG_STATUSPATH < STATUS_FULLPATH)? calloc(1, PATH_MAX) : strdup(name);
-#if CFG_STATUSPATH == STATUS_FILENAME
-    char *s;
-    if (!strcmp(name, "/")) return strdup(name);
-    for (s = (char*)name+strlen(name)-1; s > name && *s != '/'; --s);
-    strcat(path, s + ((*s == '/')? 1 : 0));
-#elif CFG_STATUSPATH == STATUS_FILEPATH
-    const char *home = getenv("HOME");
-    if (!strstr(name, home)) return strdup(name);
-    strcat(path, "~");
-    strcat(path, name+strlen(home));
-#endif
+char *get_filename(const char *name, int fmt_type) {
+    char *path = calloc(1, PATH_MAX);
+    switch (fmt_type) {
+    default: {
+        strcat(path, name);
+    } break;
+    case STATUS_FILENAME: {
+        char *s;
+        for (s = (char*)name+strlen(name)-1; s > name && *s != '/'; --s);
+        strcat(path, s + ((*s == '/')? 1 : 0));
+    } break;
+    case STATUS_FILEPATH: {
+        const char *home = getenv("HOME");
+        if (strstr(name, home) != NULL) {
+            strcat(path, "~");
+            strcat(path, name+strlen(home));
+        } else strcat(path, name);
+    } break;
+    }
     return path;
 }
 
@@ -615,7 +623,7 @@ static void _render_status(void) {
     memset(status, ' ', led.ww);
     mvprintw(led.wh-1, 0, "%s", status);
 #endif
-    char *buf_name = get_filename(buf->name);
+    char *buf_name = get_filename(buf->name, CFG_STATUSPATH);
     sprintf(status, "%s %d %d:%ld (%ld:%d %s%s) ",
         buf->is_readonly? " [RO]" : "",
         buf->cur.cur-buf->lines[buf->cur.line].start+1,
@@ -671,6 +679,7 @@ static void _list_buffers(void) {
             .is_dir = 0,
         };
     }
+    led.picker.cur = led.cur_buffer - led.buffers;
 }
 
 static void _switch_mode(struct buffer *buf, int m) {
@@ -862,6 +871,8 @@ static void _update_insert(struct buffer *buf, int ch) {
         remove_prev_word(buf); break;
     default:
         if (!strcmp(key, "kDC5"))       remove_next_word(buf);
+        else if (!strcmp(key, "kUP5"))  move_up(buf);
+        else if (!strcmp(key, "kDN5"))  move_down(buf);
         else if (!strcmp(key, "kLFT5")) move_prev_word(buf);
         else if (!strcmp(key, "kLFT6")) return move_prev_word(buf);
         else if (!strcmp(key, "kRIT5")) move_next_word(buf);
