@@ -145,7 +145,7 @@ void picker_render(struct filepicker *fp) {
         const int attr = i == fp->cur? A_REVERSE : 0;
         struct filepicker_entry ent = fp->files[i];
         attron(attr);
-        char *ent_name = get_filename(ent.name, CFG_STATUSPATH);
+        char *ent_name = get_filename(ent.name, CFG_PICKERPATH);
         mvprintw(i-fp->off, 0, "%.*s%s", fp->ww, ent_name, ent.is_dir? "/" : "");
         free(ent_name);
         attroff(attr);
@@ -160,7 +160,7 @@ void picker_render(struct filepicker *fp) {
     memset(status, ' ', fp->ww);
     mvprintw(fp->wh-1, 0, "%s", status);
 #endif
-    char *path = get_filename(fp->path, CFG_STATUSPATH);
+    char *path = get_filename(fp->path, CFG_PICKERPATH);
     sprintf(status, "%d:%d %s ", fp->cur+1, fp->num_files, path);
     free(path);
     mvprintw(fp->wh-1, fp->ww-strlen(status), "%s", status);
