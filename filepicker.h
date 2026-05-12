@@ -28,6 +28,7 @@ void picker_reset(struct filepicker *fp);
 
 #include <stdlib.h>
 #include "led.h"
+#include "config.h"
 
 static inline int _picker_filter_dirs(const struct dirent *ent) {
     return ent->d_type == DT_DIR;
@@ -144,7 +145,7 @@ void picker_render(struct filepicker *fp) {
         const int attr = i == fp->cur? A_REVERSE : 0;
         struct filepicker_entry ent = fp->files[i];
         attron(attr);
-        char *ent_name = get_filename(ent.name);
+        char *ent_name = get_filename(ent.name, CFG_STATUSPATH);
         mvprintw(i-fp->off, 0, "%.*s%s", fp->ww, ent_name, ent.is_dir? "/" : "");
         free(ent_name);
         attroff(attr);
@@ -159,7 +160,7 @@ void picker_render(struct filepicker *fp) {
     memset(status, ' ', fp->ww);
     mvprintw(fp->wh-1, 0, "%s", status);
 #endif
-    char *path = get_filename(fp->path);
+    char *path = get_filename(fp->path, CFG_STATUSPATH);
     sprintf(status, "%d:%d %s ", fp->cur+1, fp->num_files, path);
     free(path);
     mvprintw(fp->wh-1, fp->ww-strlen(status), "%s", status);
