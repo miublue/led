@@ -929,7 +929,7 @@ e:  exit(!extended);
 
 int main(int argc, char **argv) {
     opts.ignore_case = CFG_IGNORECASE, opts.show_numbers = CFG_LINENUMBER;
-    opts.expand_tabs = CFG_EXPANDTABS, opts.is_readonly = FALSE;
+    opts.expand_tabs = CFG_EXPANDTABS, opts.tab_width = CFG_TABWIDTH, opts.is_readonly = FALSE;
     char *opened_dir = NULL, cur_dir[PATH_MAX], opt;
     struct stat stat_buf;
     led.cur_buffer = led.buffers = malloc((led.max_buffers = ALLOC_SIZE)*sizeof(struct buffer));
@@ -938,7 +938,7 @@ int main(int argc, char **argv) {
         else if (strchr("Ee", opt)) opts.expand_tabs  = opt == 'E';
         else if (strchr("Ll", opt)) opts.show_numbers = opt == 'L';
         else if (strchr("Rr", opt)) opts.is_readonly  = opt == 'R';
-        else if (opt == 't') opts.tab_width = atoi(optarg)? : CFG_TABWIDTH;
+        else if (opt == 't') opts.tab_width = atoi(optarg)? : opts.tab_width;
         else _usage(argv[0], opt == 'h');
     }
     for (int i = optind; i < argc; ++i) {
@@ -966,19 +966,16 @@ int main(int argc, char **argv) {
         return 1;
     }
     for (;;) {
+        erase();
         if (led.ww >= MIN_TERM_WIDTH && led.wh >= MIN_TERM_HEIGHT) {
             curs_set(0);
-            erase();
             _render_text(led.cur_buffer);
             _render_status();
             if (led.mode < MODE_PICKER) {
                 if (!is_selecting(led.cur_buffer)) curs_set(1);
                 move(led.cur_buffer->cur_y, led.cur_buffer->cur_x);
             }
-        } else {
-            erase();
-            mvprintw(0, 0, "terminal too small");
-        }
+        } else mvprintw(0, 0, "terminal too small");
         _update(led.cur_buffer);
         if (led.mode != MODE_PICKER && !led.num_buffers) break;
     }
