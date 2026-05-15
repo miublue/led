@@ -14,8 +14,11 @@ all:
 install: all
 	mkdir -p ${PREFIX}/bin
 	install -s led ${PREFIX}/bin
+	mkdir -p ${PREFIX}/share/man/man1
+	install -m 644 led.1 ${PREFIX}/share/man/man1
 
 uninstall:
 	rm ${PREFIX}/bin/led
+	rm ${PREFIX}/share/man/man1/led
 
 .PHONY: all install uninstall
