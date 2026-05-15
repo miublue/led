@@ -1,0 +1,96 @@
+.Dd May 15, 2026
+.Dt LED 1
+.Sh NAME
+.Nm led
+.Nd tiny text editor
+.Sh SYNOPSIS
+.Nm
+.Op Fl CcEeLlRrhv
+.Op Fl t Ar tab_size
+.Op Ar files...
+.Sh DESCRIPTION
+.Nm
+is a lightweight text editor for the terminal.
+The statusbar is formatted as
+.B
+COL LINE:SIZE (CUR:BUFS FILE)
+as follows
+.Bl -tag -width indent
+.It COL  is the current cursor column
+.It LINE is the current cursor line
+.It SIZE is the number of lines in the current buffer
+.It CUR  is the current buffer
+.It BUFS is the number of open buffers
+.It FILE is the name of the current buffer
+.Sh OPTIONS
+.Bl -tag -width indent
+.It Fl C
+enables case-insensitive search
+.It Fl c
+disables case-insensitive search
+.It Fl E
+enables expanding tabs to spaces
+.It Fl e
+disables expanding tabs to spaces
+.It Fl L
+enables line numbers
+.It Fl l
+disables line numbers
+.It Fl R
+enables read-only mode
+.It Fl r
+disables read-only mode
+.It Fl h
+prints help message and exits
+.It Fl v
+prints version and exits
+.It Fl t Ar tab_size
+sets the number of spaces used to draw tabs
+.Sh KEYBINDS
+.Bl -tag -width indent
+.It Ctrl+s
+Save the current buffer to a file.
+.It Ctrl+o
+Open file picker.
+.It Ctrl+b
+Open the buffer selector.
+.It Ctrl+w
+Switch to next buffer.
+.It Ctrl+z
+Undo change.
+.It Ctrl+y
+Redo change.
+.It Ctrl+q
+Close buffer.
+.It Ctrl+f
+Enter search mode.
+.It Ctrl+r
+Enter replace mode when searching.
+.It Ctrl+n
+Go to next search match.
+.It Ctrl+g
+Go to line.
+.It Ctrl+c
+Copy line/selection.
+.It Ctrl+x
+Cut line/selection.
+.It Ctrl+v
+Paste text.
+.It Ctrl+{Left,Right}
+Move whole word backward/forward.
+.It Ctrl+{Backspace,Delete}
+Delete whole word backward/forward.
+.It Tab
+Indent current line/selection.
+.It Shift+Tab
+Unindent current line/selection.
+.Sh SEE ALSO
+.Xr ncurses 3
+.Xr xsel 1
+.Sh AUTHORS
+.An Miu Aq Mt https://github.com/miublue
+.Sh BUGS
+Probably.
+Check 
+.Mt https://github.com/miublue/led
+and grep for `XXX` to see known issues and missing features.
