@@ -78,7 +78,7 @@ static void _picker_move(struct filepicker *fp, int dir) {
 }
 
 static void _picker_find(struct filepicker *fp, char *name) {
-    int cur = fp->cur, off = fp->off, pos, found = 0;
+    int cur = fp->cur, off = fp->off, pos;
     for (pos = cur+1; pos < fp->num_files; ++pos)
         if (strcasestr(fp->files[pos].name, name)) goto jmp;
     for (pos = 0; pos < cur; ++pos)
