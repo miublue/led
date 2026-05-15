@@ -916,13 +916,14 @@ static void _update(struct buffer *buf) {
 }
 
 static void _usage(const char *prg, bool extended) {
-    fprintf(stderr, "usage: %s [-CcEehLlRr] [-t num] [files...]\n", prg);
+    fprintf(stderr, "usage: %s [-CcEeLlRrhv] [-t num] [files...]\n", prg);
     if (!extended) goto e;
     fprintf(stderr, "    -C,-c    toggles case insensitive search\n");
     fprintf(stderr, "    -E,-e    toggles expanding tabs to spaces\n");
     fprintf(stderr, "    -L,-l    toggles line numbers\n");
     fprintf(stderr, "    -R,-r    toggles read-only mode\n");
-    fprintf(stderr, "    -h       show this help and exit\n");
+    fprintf(stderr, "    -h       print this help and exit\n");
+    fprintf(stderr, "    -v       print version and exit\n");
     fprintf(stderr, "    -t num   indent using 'num' spaces\n");
 e:  exit(!extended);
 }
@@ -933,11 +934,12 @@ int main(int argc, char **argv) {
     char *opened_dir = NULL, cur_dir[PATH_MAX], opt;
     struct stat stat_buf;
     led.cur_buffer = led.buffers = malloc((led.max_buffers = ALLOC_SIZE)*sizeof(struct buffer));
-    while ((opt = getopt(argc, argv, "cCeElLrRht:")) != -1) {
+    while ((opt = getopt(argc, argv, "cCeElLrRhvt:")) != -1) {
         /**/ if (strchr("Cc", opt)) opts.ignore_case  = opt == 'C';
         else if (strchr("Ee", opt)) opts.expand_tabs  = opt == 'E';
         else if (strchr("Ll", opt)) opts.show_numbers = opt == 'L';
         else if (strchr("Rr", opt)) opts.is_readonly  = opt == 'R';
+        else if (opt == 'v') { fprintf(stdout, "%s %s\n", argv[0], VERSION); exit(0); }
         else if (opt == 't') opts.tab_width = atoi(optarg)? : opts.tab_width;
         else _usage(argv[0], opt == 'h');
     }

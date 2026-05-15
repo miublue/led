@@ -3,6 +3,8 @@
 
 #include <stdlib.h>
 
+/* already made a shit ton of revisions, but never had a version */
+#define VERSION "1.42"
 #define LENGTH(x) (sizeof(x)/sizeof((x)[0]))
 #define CTRL(c) ((c) & 0x1f)
 #define ALLOC_SIZE 512
