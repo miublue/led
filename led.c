@@ -553,7 +553,12 @@ static void _render_line(struct buffer *buf, int l, int off, int lineoff) {
         } else sz++;
         attroff(attr);
     }
-    if (opts.show_numbers) mvprintw(l-buf->cur.off, 0, " %*d ", lineoff, l+1);
+    if (opts.show_numbers) {
+        int attr = (l == buf->cur.line)? 0 : A_DIM;
+        attron(attr);
+        mvprintw(l-buf->cur.off, 0, " %*d ", lineoff, l+1);
+        attroff(attr);
+    }
 }
 
 static inline int _calculate_line_size(struct buffer *buf) {
@@ -564,6 +569,7 @@ static inline int _calculate_line_size(struct buffer *buf) {
 }
 
 static void _render_text(struct buffer *buf) {
+    if (led.mode >= MODE_PICKER) return picker_render(&led.picker);
     int cur_off = _calculate_line_size(buf), lineoff = 0, off = 0;
     if (opts.show_numbers) {
         char linenu[16];
@@ -614,31 +620,38 @@ char *get_filename(const char *name, int fmt_type) {
 }
 
 static void _render_status(void) {
-    char status[ALLOC_SIZE] = {0};
+    char status[ALLOC_SIZE] = {0}, *name;
     struct buffer *buf = led.cur_buffer;
-    int attr = A_NORMAL;
-#if CFG_INVERTSTATUS
-    attr = A_REVERSE;
+    int attr = CFG_INVERTSTATUS? A_REVERSE : A_NORMAL;
     attron(attr);
     memset(status, ' ', led.ww);
     mvprintw(led.wh-1, 0, "%s", status);
-#endif
-    char *buf_name = get_filename(buf->name, CFG_STATUSPATH);
-    sprintf(status, "%s %d %d:%ld (%ld:%d %s%s) ",
-        buf->is_readonly? " [RO]" : "",
-        buf->cur.cur-buf->lines[buf->cur.line].start+1,
-        buf->cur.line+1, buf->lines_sz,
-        (buf-led.buffers)+1, led.num_buffers, buf_name,
-        buf->last_change != buf->action? "*" : "");
-    free(buf_name);
+    if (led.mode >= MODE_PICKER) {
+        name = get_filename(led.picker.path, CFG_PICKERPATH);
+        snprintf(status, ALLOC_SIZE, "%d:%d (%ld:%d %s) ",
+            led.picker.cur+1, led.picker.num_files,
+            (buf-led.buffers)+1, led.num_buffers, name);
+    } else {
+        name = get_filename(buf->name, CFG_STATUSPATH);
+        snprintf(status, ALLOC_SIZE, "%s %d %d:%ld (%ld:%d %s%s) ",
+            buf->is_readonly? " [RO]" : "",
+            buf->cur.cur-buf->lines[buf->cur.line].start+1,
+            buf->cur.line+1, buf->lines_sz,
+            (buf-led.buffers)+1, led.num_buffers, name,
+            buf->last_change != buf->action? "*" : "");
+    }
     mvprintw(led.wh-1, led.ww-strlen(status), "%s", status);
-    if (led.mode != MODE_NONE && led.mode < MODE_PICKER) {
-        const char *astr = _mode_to_cstr();
+    if (led.mode != MODE_NONE) {
+        struct inputbox *inp = led.mode >= MODE_PICKER? &led.picker.input : &led.input;
+        const char *astr = led.mode >= MODE_PICKER? "Find: " : _mode_to_cstr();
+        if (led.mode >= MODE_PICKER && !led.picker.is_searching) goto end;
         mvprintw(led.wh-1, 0, "%s", astr);
         const int s = strlen(astr), cap = s+strlen(status), at = CFG_INVERTSTATUS? A_NORMAL : A_REVERSE;
         const int w = cap+5 > led.ww? led.ww-s : led.ww-cap;
-        if (led.mode != MODE_EXIT) input_render(&led.input, strlen(astr), led.wh-1, w, at);
+        if (led.mode != MODE_EXIT) input_render(inp, strlen(astr), led.wh-1, w, at);
     }
+end:
+    free(name);
     attroff(attr);
 }
 
@@ -958,12 +971,12 @@ int main(int argc, char **argv) {
         if (led.ww >= MIN_TERM_WIDTH && led.wh >= MIN_TERM_HEIGHT) {
             curs_set(0);
             erase();
+            _render_text(led.cur_buffer);
+            _render_status();
             if (led.mode < MODE_PICKER) {
-                _render_text(led.cur_buffer);
-                _render_status();
                 if (!is_selecting(led.cur_buffer)) curs_set(1);
                 move(led.cur_buffer->cur_y, led.cur_buffer->cur_x);
-            } else picker_render(&led.picker);
+            }
         } else {
             erase();
             mvprintw(0, 0, "terminal too small");

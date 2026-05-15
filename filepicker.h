@@ -150,28 +150,6 @@ void picker_render(struct filepicker *fp) {
         free(ent_name);
         attroff(attr);
     }
-    // XXX: i wanna merge this statusbar with led's statusbar, but i'm feeling kinda
-    //      lazy rn so the code'll probably be a disgusting mess. do that later pls.
-    char status[ALLOC_SIZE] = {0};
-    int attr = A_NORMAL;
-#if CFG_INVERTSTATUS
-    attr = A_REVERSE;
-    attron(attr);
-    memset(status, ' ', fp->ww);
-    mvprintw(fp->wh-1, 0, "%s", status);
-#endif
-    char *path = get_filename(fp->path, CFG_PICKERPATH);
-    sprintf(status, "%d:%d %s ", fp->cur+1, fp->num_files, path);
-    free(path);
-    mvprintw(fp->wh-1, fp->ww-strlen(status), "%s", status);
-    if (fp->is_searching) {
-        const char *str = "Find: ";
-        const int cap = strlen(str)+strlen(status), inp_attr = CFG_INVERTSTATUS? A_NORMAL : A_REVERSE;
-        const int w = cap+5 > fp->ww? fp->ww-strlen(str) : fp->ww-cap;
-        mvprintw(fp->wh-1, 0, str);
-        input_render(&fp->input, strlen(str), fp->wh-1, w, inp_attr);
-    }
-    attroff(attr);
 }
 
 void picker_reset(struct filepicker *fp) {
