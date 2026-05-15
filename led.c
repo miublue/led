@@ -215,32 +215,28 @@ void exit_program(void) {
 void open_file(char *path, bool is_readonly) {
     struct stat stbuf;
     FILE *file = NULL;
-    led.cur_buffer = create_buffer(path);
-    led.mode = MODE_NONE;
-    // XXX: clean up this mess
-    if (stat(path, &stbuf) == 0) {
-        if (!S_ISREG(stbuf.st_mode)) goto open_file_fail;
-        if (is_readonly || !(stbuf.st_mode & S_IWUSR)) led.cur_buffer->is_readonly = TRUE;
+    struct buffer *buf = led.cur_buffer = create_buffer(path);
+    led.mode = MODE_NONE, buf->is_readonly = is_readonly;
+    if (!path || stat(path, &stbuf) != 0) {
+        buf->text_sz = 0, buf->text = malloc(buf->text_cap = ALLOC_SIZE);
+        return _count_lines(buf);
     }
-    if (!(file = fopen(path, "r"))) goto new_file;
+    if (!S_ISREG(stbuf.st_mode) || !(stbuf.st_mode & S_IWUSR)) buf->is_readonly = TRUE;
+    if (!(file = fopen(path, "r"))) goto open_file_fail;
     fseek(file, 0, SEEK_END);
-    led.cur_buffer->text_cap = ALLOC_SIZE+(led.cur_buffer->text_sz = ftell(file));
+    buf->text_cap = ALLOC_SIZE+(buf->text_sz = ftell(file));
     rewind(file);
-    led.cur_buffer->text = calloc(1, led.cur_buffer->text_cap);
-    if (!led.cur_buffer->text) goto open_file_fail;
-    if (fread(led.cur_buffer->text, 1, led.cur_buffer->text_sz, file) != led.cur_buffer->text_sz) goto open_file_fail;
-    _count_lines(led.cur_buffer);
-    led.cur_buffer->search_range = (struct line) { .start = 0, .end = led.cur_buffer->text_sz };
+    buf->text = calloc(1, buf->text_cap);
+    if (!buf->text) goto open_file_fail;
+    if (fread(buf->text, 1, buf->text_sz, file) != buf->text_sz) goto open_file_fail;
+    _count_lines(buf);
+    buf->search_range = (struct line) { .start = 0, .end = buf->text_sz };
     fclose(file);
     return;
 open_file_fail:
     if (file) fclose(file);
     fprintf(stderr, "error: could not open file '%s'\n", path);
     exit_program();
-new_file:
-    led.cur_buffer->text_sz = 0;
-    led.cur_buffer->text = malloc(led.cur_buffer->text_cap = ALLOC_SIZE);
-    _count_lines(led.cur_buffer);
 }
 
 void write_file(struct buffer *buf, char *path) {
@@ -865,20 +861,17 @@ static void _update_insert(struct buffer *buf, int ch) {
         insert_char(buf, '\n'); break;
     case '\t':
         if (is_selecting(buf)) return indent_selection(buf);
-        else indent(buf); break;
+        indent(buf); break;
     case KEY_BTAB:
         if (is_selecting(buf)) return unindent_selection(buf);
-        else unindent(buf); break;
+        unindent(buf); break;
     case KEY_DC:
         if (is_selecting(buf)) remove_selection(buf);
         else remove_char(buf, FALSE);
         break;
     case KEY_BACKSPACE:
         if (is_selecting(buf)) remove_selection(buf);
-        else {
-            if (buf->cur.cur == 0) break;
-            remove_char(buf, TRUE);
-        }
+        else if (buf->cur.cur != 0) remove_char(buf, TRUE);
         break;
     case 8: case 127: // ctrl + backspace
         remove_prev_word(buf); break;
@@ -923,41 +916,46 @@ static void _update(struct buffer *buf) {
 }
 
 static void _usage(const char *prg, bool extended) {
-    fprintf(stderr, "usage: %s [-h|-r|-c|-l|-e|-t num] file [file...]\n", prg);
+    fprintf(stderr, "usage: %s [-CcEehLlRr] [-t num] [files...]\n", prg);
     if (!extended) goto e;
+    fprintf(stderr, "    -C,-c    toggles case insensitive search\n");
+    fprintf(stderr, "    -E,-e    toggles expanding tabs to spaces\n");
+    fprintf(stderr, "    -L,-l    toggles line numbers\n");
+    fprintf(stderr, "    -R,-r    toggles read-only mode\n");
     fprintf(stderr, "    -h       show this help and exit\n");
-    fprintf(stderr, "    -r       open in read-only mode\n");
-    fprintf(stderr, "    -c       toggle search ignores case\n");
-    fprintf(stderr, "    -l       toggle drawing line numbers\n");
-    fprintf(stderr, "    -e       toggle expanding tabs to spaces\n");
     fprintf(stderr, "    -t num   indent using 'num' spaces\n");
 e:  exit(!extended);
 }
 
 int main(int argc, char **argv) {
-    opts.ignore_case = CFG_IGNORECASE;
-    opts.show_numbers = CFG_LINENUMBER;
-    opts.expand_tabs = CFG_EXPANDTAB;
-    opts.tab_width = CFG_TABWIDTH;
-    opts.is_readonly = FALSE;
+    opts.ignore_case = CFG_IGNORECASE, opts.show_numbers = CFG_LINENUMBER;
+    opts.expand_tabs = CFG_EXPANDTABS, opts.is_readonly = FALSE;
+    char *opened_dir = NULL, cur_dir[PATH_MAX], opt;
+    struct stat stat_buf;
     led.cur_buffer = led.buffers = malloc((led.max_buffers = ALLOC_SIZE)*sizeof(struct buffer));
-    for (int i = 1; i < argc; ++i) {
-        if (!strcmp(argv[i], "-h")) _usage(argv[0], TRUE);
-        else if (!strcmp(argv[i], "-r")) opts.is_readonly  = TRUE;
-        else if (!strcmp(argv[i], "-c")) opts.ignore_case  = !opts.ignore_case;
-        else if (!strcmp(argv[i], "-l")) opts.show_numbers = !opts.show_numbers;
-        else if (!strcmp(argv[i], "-e")) opts.expand_tabs  = !opts.expand_tabs;
-        else if (!strcmp(argv[i], "-t") && i+1 < argc) opts.tab_width = atoi(argv[++i]);
-        else if (argv[i][0] == '-') _usage(argv[0], FALSE);
-        else {
-            char *path = realpath(argv[i], NULL);
-            open_file(path? path : strdup(argv[i]), opts.is_readonly);
-        }
+    while ((opt = getopt(argc, argv, "cCeElLrRht:")) != -1) {
+        /**/ if (strchr("Cc", opt)) opts.ignore_case  = opt == 'C';
+        else if (strchr("Ee", opt)) opts.expand_tabs  = opt == 'E';
+        else if (strchr("Ll", opt)) opts.show_numbers = opt == 'L';
+        else if (strchr("Rr", opt)) opts.is_readonly  = opt == 'R';
+        else if (opt == 't') opts.tab_width = atoi(optarg)? : CFG_TABWIDTH;
+        else _usage(argv[0], opt == 'h');
     }
-    if (!led.num_buffers) {
-        char buf[PATH_MAX];
+    for (int i = optind; i < argc; ++i) {
+        char *path = realpath(argv[i], NULL);
+        if (path && !stat(path, &stat_buf) && !opened_dir) {
+            if (S_ISDIR(stat_buf.st_mode)) {
+                opened_dir = path;
+                continue;
+            }
+        }
+        if (!opened_dir) open_file(path? path : strdup(argv[i]), opts.is_readonly);
+        else free(path);
+    }
+    if (!led.num_buffers || opened_dir) {
         led.mode = MODE_PICKER;
-        picker_scan(&led.picker, getcwd(buf, PATH_MAX));
+        if (opened_dir) chdir(opened_dir);
+        picker_scan(&led.picker, getcwd(cur_dir, PATH_MAX));
     }
     _init_curses();
     getmaxyx(stdscr, led.wh, led.ww);
