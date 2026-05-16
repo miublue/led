@@ -511,7 +511,8 @@ static inline void _operate_on_lines(struct buffer *buf, void (*fn)(struct buffe
         const struct line *line = &buf->lines[buf->cur.line];
         const int prev = line->end - line->start;
         fn(buf);
-        buf->cur.sel += (line->end - line->start) - prev;
+        const int diff = (line->end - line->start) - prev;
+        buf->cur.sel += diff, buf->search_range.end += diff;
         if (buf->cur.sel >= line->start && buf->cur.sel <= line->end)
             break;
     }
