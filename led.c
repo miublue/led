@@ -533,12 +533,9 @@ static void _render_line(struct buffer *buf, int l, int off, int lineoff) {
     int sz = off;
     for (int i = line.start; i <= line.end; ++i) {
         int attr = 0;
-        if (buf->cur.cur == i) {
-            buf->cur_x = sz;
-            buf->cur_y = l-buf->cur.off;
-        }
-        if (_is_selected(buf, i)) attr = A_REVERSE;
-        if (i < buf->search_range.start || i > buf->search_range.end) attr |= A_DIM;
+        if (buf->cur.cur == i) buf->cur_x = sz, buf->cur_y = l-buf->cur.off;
+        if (_is_selected(buf, i)) attr = CFG_ATTRSELECT;
+        if (i < buf->search_range.start || i > buf->search_range.end) attr |= CFG_ATTRUNSELECT;
         attron(attr);
         mvprintw(l-buf->cur.off, sz, "%c", isspace(buf->text[i])? ' ' : buf->text[i]);
         if (buf->text[i] == '\t') {
@@ -551,7 +548,7 @@ static void _render_line(struct buffer *buf, int l, int off, int lineoff) {
         attroff(attr);
     }
     if (opts.show_numbers) {
-        int attr = (l == buf->cur.line)? 0 : A_DIM;
+        const int attr = (l == buf->cur.line)? CFG_ATTRCURLINE : CFG_ATTRLINENO;
         attron(attr);
         mvprintw(l-buf->cur.off, 0, " %*d ", lineoff, l+1);
         attroff(attr);
@@ -619,7 +616,7 @@ char *get_filename(const char *name, int fmt_type) {
 static void _render_status(void) {
     char status[ALLOC_SIZE] = {0}, *name;
     struct buffer *buf = led.cur_buffer;
-    int attr = CFG_INVERTSTATUS? A_REVERSE : A_NORMAL;
+    int attr = CFG_ATTRSTATUS;
     attron(attr);
     memset(status, ' ', led.ww);
     mvprintw(led.wh-1, 0, "%s", status);
@@ -643,7 +640,7 @@ static void _render_status(void) {
         const char *astr = led.mode >= MODE_PICKER? "Find: " : _mode_to_cstr();
         if (led.mode >= MODE_PICKER && !led.picker.is_searching) goto end;
         mvprintw(led.wh-1, 0, "%s", astr);
-        const int s = strlen(astr), cap = s+strlen(status), at = CFG_INVERTSTATUS? A_NORMAL : A_REVERSE;
+        const int s = strlen(astr), cap = s+strlen(status), at = (attr&A_REVERSE)? A_NORMAL : A_REVERSE;
         const int w = cap+5 > led.ww? led.ww-s : led.ww-cap;
         if (led.mode != MODE_EXIT) input_render(inp, strlen(astr), led.wh-1, w, at);
     }
