@@ -961,7 +961,7 @@ int main(int argc, char **argv) {
     getmaxyx(stdscr, led.wh, led.ww);
     if (led.ww < MIN_TERM_WIDTH || led.wh < MIN_TERM_HEIGHT) {
         _quit_curses();
-        fprintf(stderr, "error: %s requires minimal terminal size of %dx%d\n",
+        fprintf(stderr, "error: %s requires minimum terminal size of %dx%d\n",
             argv[0], MIN_TERM_WIDTH, MIN_TERM_HEIGHT);
         return 1;
     }
