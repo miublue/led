@@ -142,7 +142,7 @@ void picker_render(struct filepicker *fp) {
     getmaxyx(stdscr, fp->wh, fp->ww);
     for (int i = fp->off; i < fp->off+fp->wh; ++i) {
         if (i >= fp->num_files) break;
-        const int attr = i == fp->cur? A_REVERSE : 0;
+        const int attr = (i == fp->cur)? CFG_ATTRSELECT : 0;
         struct filepicker_entry ent = fp->files[i];
         attron(attr);
         char *ent_name = get_filename(ent.name, CFG_PICKERPATH);
