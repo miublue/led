@@ -58,13 +58,14 @@ static bool _is_action_repeat(struct buffer *buf, struct action *act, int type) 
 static void _append_action(struct buffer *buf, int type, char *text, int sz) {
     if (buf->action != -1 && buf->actions[buf->action].type == type) {
         struct action *act = &buf->actions[buf->action];
-        bool is_repeat = _is_action_repeat(buf, act, type);
-        if (is_repeat && type == ACTION_BACKSPACE) act->cur = buf->cur;
-        if (is_repeat) { _insert_to_action(act, text, sz); return; }
+        if (_is_action_repeat(buf, act, type)) {
+            if (type == ACTION_BACKSPACE) act->cur = buf->cur;
+            _insert_to_action(act, text, sz);
+            return;
+        }
     }
-    struct action act = { .type = type, .cur = buf->cur };
+    struct action act = { .type = type, .cur = buf->cur, .text_sz = 0 };
     act.text = malloc(sizeof(char) * (act.text_cap = sz+ALLOC_SIZE));
-    act.text_sz = 0;
     _insert_to_action(&act, text, sz);
     _actions_append(buf, act);
 }
@@ -87,16 +88,15 @@ static inline void _undo_backspace(struct buffer *buf, struct action *act) {
 }
 
 static inline void _center_line(struct buffer *buf, const int last_off) {
-    // XXX: centering line kinda sucks sometimes
-    int halfh = led.wh/2, off = buf->cur.off + halfh;
-    if (last_off != buf->cur.off && buf->cur.line-off > 0 && off+halfh+1 < buf->lines_sz)
-        buf->cur.off = off;
+    const int off = 1 + buf->cur.line - led.wh / 2;
+    if (off > 0 && buf->cur.line+led.wh/2 < buf->lines_sz) buf->cur.off = off;
 }
 
 static inline void _goto_action_pos(struct buffer *buf, struct action *act) {
     int cur_off = buf->cur.off;
     buf->cur = act->cur;
-    _center_line(buf, cur_off);
+    if (buf->cur.line-buf->cur.off < 0 || buf->cur.line-buf->cur.off >= led.wh-1)
+        _center_line(buf, cur_off);
 }
 
 void undo_action(struct buffer *buf) {
@@ -931,9 +931,10 @@ static void _update(struct buffer *buf) {
     int ch = getch();
     if (ch == KEY_RESIZE) {
         getmaxyx(stdscr, led.wh, led.ww);
-        while (buf->cur.line-buf->cur.off < 0) move_down(buf);
-        while (buf->cur.line-buf->cur.off >= led.wh-1) move_up(buf);
-        buf->cur.sel = buf->cur.cur;
+        for (struct buffer *b = led.buffers; b != &led.buffers[led.num_buffers]; ++b) {
+            if (b->cur.line-b->cur.off < 0 || b->cur.line-b->cur.off >= led.wh-1)
+                _center_line(b, b->cur.off);
+        }
     } else update_fns[led.mode](buf, ch);
 }
 
