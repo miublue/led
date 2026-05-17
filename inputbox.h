@@ -24,7 +24,7 @@ void input_set(struct inputbox *ib, char *text, int sz);
 static inline void _input_insert_char(struct inputbox *ib, int c) {
     ib->text_sz++;
     memmove(ib->text+ib->pos+1, ib->text+ib->pos, ib->text_sz-ib->pos);
-    ib->text[ib->pos++] = c;
+    ib->text[ib->pos++] = c, ib->text[ib->text_sz] = 0;
 }
 
 static inline void _input_remove_char(struct inputbox *ib, bool backspace) {
@@ -33,7 +33,7 @@ static inline void _input_remove_char(struct inputbox *ib, bool backspace) {
         --ib->pos;
     }
     memmove(ib->text+ib->pos, ib->text+ib->pos+1, ib->text_sz-ib->pos);
-    ib->text_sz--;
+    ib->text[--ib->text_sz] = 0;
 }
 
 static inline bool _input_isdelim(char c) {
