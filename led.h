@@ -38,6 +38,8 @@ struct buffer {
 
 struct buffer *create_buffer(char *name);
 void close_buffer(struct buffer *buf);
+void switch_buffer(struct buffer *new);
+void next_buffer(void);
 void open_file(char *path, bool readonly);
 void write_file(struct buffer *buf, char *path);
 void exit_program(void);

@@ -89,9 +89,8 @@ static inline void _undo_backspace(struct buffer *buf, struct action *act) {
 }
 
 static inline void _center_line(struct buffer *buf) {
-    /* XXX: this is still kinda shit at the end of file but whatever works */
     const int off = 1 + buf->cur.line - led.wh / 2;
-    if (off > 0) buf->cur.off = off;
+    if (off > 0 || buf->cur.off >= buf->lines_sz-1) buf->cur.off = off;
 }
 
 static inline void _goto_action_pos(struct buffer *buf, struct action *act) {
@@ -135,7 +134,7 @@ static void _append_line(struct buffer *buf, struct line line) {
 }
 
 static void _count_lines(struct buffer *buf) {
-    int num_lines = buf->lines_sz, line_start = buf->lines_sz = 0;
+    int line_start = buf->lines_sz = 0;
     for (int i = 0; i < buf->text_sz; ++i) {
         if (buf->text[i] == '\n') {
             _append_line(buf, (struct line) { line_start, i });
@@ -147,7 +146,7 @@ static void _count_lines(struct buffer *buf) {
         insert_char(buf, '\n');
         buf->cur.cur = 0;
     }
-    if (opts.show_numbers && num_lines != buf->lines_sz) {
+    if (opts.show_numbers) {
         char ln[16];
         led.rulersz = snprintf(ln, sizeof(ln), "%d", buf->lines_sz);
     }
@@ -205,7 +204,7 @@ void close_buffer(struct buffer *buf) {
     if (--led.num_buffers == 0) exit_program();
     led.mode = MODE_NONE;
     for (struct buffer *b = buf; b != &led.buffers[led.num_buffers]; ++b) *b = *(b+1);
-    if (led.cur_buffer == &led.buffers[led.num_buffers]) --led.cur_buffer;
+    if (led.cur_buffer == &led.buffers[led.num_buffers]) switch_buffer(led.cur_buffer-1);
 }
 
 void exit_program(void) {
@@ -665,11 +664,12 @@ static void _jump_to_line(struct buffer *buf) {
     buf->cur.sel = buf->cur.cur;
 }
 
-static void _switch_buffer(void) {
-    if (led.num_buffers > 1) {
-        if (++led.cur_buffer == &led.buffers[led.num_buffers])
-            led.cur_buffer = &led.buffers[0];
-    }
+void switch_buffer(struct buffer *buf) {
+    _count_lines(led.cur_buffer = buf);
+}
+
+void next_buffer(void) {
+    switch_buffer(led.cur_buffer == &led.buffers[led.num_buffers-1]? &led.buffers[0] : led.cur_buffer+1);
 }
 
 static void _list_buffers(void) {
@@ -760,7 +760,7 @@ static void _update_picker(struct buffer *buf, int ch) {
         }
         for (int i = 0; i < led.num_buffers; ++i) {
             if (!strcmp(led.buffers[i].name, path)) {
-                led.cur_buffer = &led.buffers[i];
+                switch_buffer(&led.buffers[i]);
                 return;
             }
         }
@@ -782,7 +782,7 @@ static void _update_buffers(struct buffer *buf, int ch) {
         struct filepicker_entry *sel_buf = &led.picker.files[led.picker.cur];
         for (int i = 0; i < led.num_buffers; ++i) {
             if (!strcmp(led.buffers[i].name, sel_buf->name)) {
-                led.cur_buffer = &led.buffers[i];
+                switch_buffer(&led.buffers[i]);
                 return;
             }
         }
@@ -815,7 +815,7 @@ static void _update_insert(struct buffer *buf, int ch) {
     case CTRL('g'):     switch_mode(buf, MODE_GOTO); break;
     case CTRL('r'):
     case CTRL('f'):     switch_mode(buf, MODE_FIND); break;
-    case CTRL('w'):     _switch_buffer(); return;
+    case CTRL('w'):     next_buffer(); return;
     case KEY_LEFT:      move_left(buf); break;
     case KEY_SLEFT:     move_left(buf); return;
     case KEY_RIGHT:     move_right(buf); break;
