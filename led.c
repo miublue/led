@@ -22,6 +22,7 @@ static struct {
     struct buffer *buffers, *cur_buffer;
     struct inputbox input, input_find;
     struct filepicker picker;
+    char cwd[PATH_MAX];
 } led;
 
 static void _actions_append(struct buffer *buf, struct action act) {
@@ -700,22 +701,19 @@ static void _list_buffers(void) {
     led.picker.cur = led.cur_buffer - led.buffers;
 }
 
-static void _switch_mode(struct buffer *buf, int m) {
+void switch_mode(struct buffer *buf, int mode) {
     char cwd[PATH_MAX];
-    led.mode = m;
     buf->search_range = (struct line) { .start = 0, .end = buf->text_sz };
-    if (m == MODE_BUFFERS) {
+    led.mode = mode;
+    if (mode == MODE_BUFFERS) {
         _list_buffers();
         return;
-    } else if (m == MODE_PICKER) {
-        picker_scan(&led.picker, getcwd(cwd, PATH_MAX));
+    } else if (mode == MODE_PICKER) {
+        picker_scan(&led.picker, led.cwd);
         return;
+    } else if (mode == MODE_FIND && buf->cur.sel != buf->cur.cur) {
+        buf->search_range = get_selection(buf);
     }
-    if (m == MODE_FIND && buf->cur.sel != buf->cur.cur)
-        buf->search_range = (struct line) {
-            .start = MIN(buf->cur.cur, buf->cur.sel),
-            .end = MAX(buf->cur.cur, buf->cur.sel),
-        };
     input_reset(&led.input);
 }
 
@@ -845,14 +843,14 @@ static void _update_insert(struct buffer *buf, int ch) {
         break;
     case CTRL('c'):     copy_selection(buf); break;
     case CTRL('v'):     paste_text(buf); break;
-    case CTRL('o'):     _switch_mode(buf, MODE_PICKER); break;
-    case CTRL('b'):     _switch_mode(buf, MODE_BUFFERS); break;
+    case CTRL('o'):     switch_mode(buf, MODE_PICKER); break;
+    case CTRL('b'):     switch_mode(buf, MODE_BUFFERS); break;
     case CTRL('s'):     write_file(buf, buf->name); break;
     case CTRL('z'):     undo_action(buf); break;
     case CTRL('y'):     redo_action(buf); break;
-    case CTRL('g'):     _switch_mode(buf, MODE_GOTO); break;
+    case CTRL('g'):     switch_mode(buf, MODE_GOTO); break;
     case CTRL('r'):
-    case CTRL('f'):     _switch_mode(buf, MODE_FIND); break;
+    case CTRL('f'):     switch_mode(buf, MODE_FIND); break;
     case CTRL('w'):     _switch_buffer(); return;
     case KEY_LEFT:      move_left(buf); break;
     case KEY_SLEFT:     move_left(buf); return;
@@ -954,7 +952,7 @@ e:  exit(!extended);
 int main(int argc, char **argv) {
     opts.ignore_case = CFG_IGNORECASE, opts.show_numbers = CFG_LINENUMBER;
     opts.expand_tabs = CFG_EXPANDTABS, opts.tab_width = CFG_TABWIDTH, opts.is_readonly = FALSE;
-    char *opened_dir = NULL, cur_dir[PATH_MAX], opt;
+    char *opened_dir = NULL, opt;
     struct stat stat_buf;
     led.cur_buffer = led.buffers = malloc((led.max_buffers = ALLOC_SIZE)*sizeof(struct buffer));
     while ((opt = getopt(argc, argv, "cCeElLrRhvt:")) != -1) {
@@ -977,10 +975,11 @@ int main(int argc, char **argv) {
         if (!opened_dir) open_file(path? path : strdup(argv[i]), opts.is_readonly);
         else free(path);
     }
+    if (opened_dir) chdir(opened_dir);
+    getcwd(led.cwd, PATH_MAX);
     if (!led.num_buffers || opened_dir) {
         led.mode = MODE_PICKER;
-        if (opened_dir) chdir(opened_dir);
-        picker_scan(&led.picker, getcwd(cur_dir, PATH_MAX));
+        picker_scan(&led.picker, led.cwd);
     }
     _init_curses();
     getmaxyx(stdscr, led.wh, led.ww);
