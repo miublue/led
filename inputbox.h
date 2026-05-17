@@ -1,15 +1,13 @@
 #ifndef __INPUTBOX_H
 #define __INPUTBOX_H
 
-#include <inttypes.h>
-
 #ifndef INPUTBOX_TEXT_SIZE
 #define INPUTBOX_TEXT_SIZE 1024
 #endif
 
 struct inputbox {
     char text[INPUTBOX_TEXT_SIZE];
-    uint16_t text_sz, pos;
+    int text_sz, pos;
 };
 
 void input_update(struct inputbox *ib, int key);

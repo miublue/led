@@ -3,8 +3,7 @@
 
 #include <stdlib.h>
 
-/* already made a shit ton of revisions, but never had a version */
-#define VERSION "1.48"
+#define VERSION "1.53"
 #define LENGTH(x) (sizeof(x)/sizeof((x)[0]))
 #define CTRL(c) ((c) & 0x1f)
 #define ALLOC_SIZE 512
@@ -17,18 +16,13 @@
 #define STATUS_FILEPATH 1 /* draw shortened file path */
 #define STATUS_FULLPATH 2 /* draw full file path with tilde expansion */
 
-struct line { uint32_t start, end; };
+struct line { int start, end; };
+struct cursor { int cur, off, line, sel; };
 
-struct cursor {
-    int cur, off, line, sel;
-    // XXX: maybe cursor should keep track of the text it's editing
-    // (so maybe we could have multiple cursors later?)
-};
-
-enum { MODE_NONE, MODE_EXIT, MODE_FIND, MODE_REPLACE, MODE_GOTO, MODE_PICKER, MODE_BUFFERS };
+enum : int { MODE_NONE, MODE_EXIT, MODE_FIND, MODE_REPLACE, MODE_GOTO, MODE_PICKER, MODE_BUFFERS };
 
 struct action {
-    enum { ACTION_INSERT, ACTION_DELETE, ACTION_BACKSPACE } type;
+    enum : int { ACTION_INSERT, ACTION_DELETE, ACTION_BACKSPACE } type;
     struct cursor cur;
     int text_sz, text_cap;
     char *text;
@@ -36,7 +30,7 @@ struct action {
 
 struct buffer {
     char *name, *text;
-    size_t text_sz, text_cap, lines_sz, lines_cap, actions_sz, actions_cap;
+    int text_sz, text_cap, lines_sz, lines_cap, actions_sz, actions_cap;
     int action, last_change, is_undo, is_readonly, cur_x, cur_y;
     struct cursor cur;
     struct line *lines, search_range;

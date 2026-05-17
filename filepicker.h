@@ -108,7 +108,10 @@ static void _picker_update_find(struct filepicker *fp, int ch) {
 }
 
 void picker_update(struct filepicker *fp, int ch) {
-    if (fp->is_searching) return _picker_update_find(fp, ch);
+    if (fp->is_searching) {
+        _picker_update_find(fp, ch);
+        return;
+    }
     switch (ch) {
     case KEY_UP:
         _picker_move(fp, -1);

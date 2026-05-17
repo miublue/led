@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include <sys/stat.h>
 #include <unistd.h>
 #include <stdio.h>
@@ -11,8 +12,6 @@
 #include "inputbox.h"
 #define FILEPICKER_IMPL
 #include "filepicker.h"
-
-// ABANDON ALL HOPE, YE WHO ENTER HERE
 
 static struct {
     int ignore_case, show_numbers, expand_tabs, tab_width, is_readonly;
@@ -61,7 +60,7 @@ static void _append_action(struct buffer *buf, int type, char *text, int sz) {
         struct action *act = &buf->actions[buf->action];
         bool is_repeat = _is_action_repeat(buf, act, type);
         if (is_repeat && type == ACTION_BACKSPACE) act->cur = buf->cur;
-        if (is_repeat) return _insert_to_action(act, text, sz);
+        if (is_repeat) { _insert_to_action(act, text, sz); return; }
     }
     struct action act = { .type = type, .cur = buf->cur };
     act.text = malloc(sizeof(char) * (act.text_cap = sz+ALLOC_SIZE));
@@ -135,7 +134,7 @@ static void _append_line(struct buffer *buf, struct line line) {
 }
 
 static void _count_lines(struct buffer *buf) {
-    size_t line_start = buf->lines_sz = 0;
+    int line_start = buf->lines_sz = 0;
     for (int i = 0; i < buf->text_sz; ++i) {
         if (buf->text[i] == '\n') {
             _append_line(buf, (struct line) { line_start, i });
@@ -154,8 +153,8 @@ static void _init_curses(void) {
     raw();
     noecho();
     keypad(stdscr, TRUE);
-    define_key("\e[1~", KEY_HOME);
-    define_key("\e[4~", KEY_END);
+    define_key("\033[1~", KEY_HOME);
+    define_key("\033[4~", KEY_END);
 #ifdef _USE_MTM
     char key[10] = {0};
     sprintf(key, "%c%c", 197, 144); define_key(key, KEY_SF);
@@ -219,7 +218,8 @@ void open_file(char *path, bool is_readonly) {
     led.mode = MODE_NONE, buf->is_readonly = is_readonly;
     if (!path || stat(path, &stbuf) != 0) {
         buf->text_sz = 0, buf->text = malloc(buf->text_cap = ALLOC_SIZE);
-        return _count_lines(buf);
+        _count_lines(buf);
+        return;
     }
     if (!S_ISREG(stbuf.st_mode) || !(stbuf.st_mode & S_IWUSR)) buf->is_readonly = TRUE;
     if (!(file = fopen(path, "r"))) goto open_file_fail;
@@ -228,7 +228,7 @@ void open_file(char *path, bool is_readonly) {
     rewind(file);
     buf->text = calloc(1, buf->text_cap);
     if (!buf->text) goto open_file_fail;
-    if (fread(buf->text, 1, buf->text_sz, file) != buf->text_sz) goto open_file_fail;
+    if ((int)fread(buf->text, 1, buf->text_sz, file) != buf->text_sz) goto open_file_fail;
     _count_lines(buf);
     buf->search_range = (struct line) { .start = 0, .end = buf->text_sz };
     fclose(file);
@@ -368,7 +368,10 @@ void remove_char(struct buffer *buf, bool backspace) {
 }
 
 void remove_prev_word(struct buffer *buf) {
-    if (is_selecting(buf)) return remove_selection(buf);
+    if (is_selecting(buf)) {
+        remove_selection(buf);
+        return;
+    }
     if (buf->cur.cur == 0) return;
     if (DELIM(buf->text[buf->cur.cur])) move_left(buf);
     buf->cur.sel = buf->cur.cur;
@@ -377,7 +380,10 @@ void remove_prev_word(struct buffer *buf) {
 }
 
 void remove_next_word(struct buffer *buf) {
-    if (is_selecting(buf)) return remove_selection(buf);
+    if (is_selecting(buf)) {
+        remove_selection(buf);
+        return;
+    }
     move_next_word(buf);
     remove_selection(buf);
 }
@@ -565,11 +571,14 @@ static inline int _calculate_line_size(struct buffer *buf) {
 }
 
 static void _render_text(struct buffer *buf) {
-    if (led.mode >= MODE_PICKER) return picker_render(&led.picker);
+    if (led.mode >= MODE_PICKER) {
+        picker_render(&led.picker);
+        return;
+    }
     int cur_off = _calculate_line_size(buf), lineoff = 0, off = 0;
     if (opts.show_numbers) {
         char linenu[16];
-        sprintf(linenu, "%ld", buf->lines_sz);
+        sprintf(linenu, "%d", buf->lines_sz);
         off = 2+(lineoff = strlen(linenu));
     }
     if (cur_off+off > led.ww-2) off = (led.ww-2)-cur_off;
@@ -629,7 +638,7 @@ static void _render_status(void) {
             (buf-led.buffers)+1, led.num_buffers, name);
     } else {
         name = get_filename(buf->name, CFG_STATUSPATH);
-        snprintf(status, ALLOC_SIZE, "%s %d %d:%ld (%ld:%d %s%s) ",
+        snprintf(status, ALLOC_SIZE, "%s %d %d:%d (%ld:%d %s%s) ",
             buf->is_readonly? " [RO]" : "",
             buf->cur.cur-buf->lines[buf->cur.line].start+1,
             buf->cur.line+1, buf->lines_sz,
@@ -695,8 +704,10 @@ static void _switch_mode(struct buffer *buf, int m) {
     char cwd[PATH_MAX];
     led.mode = m;
     buf->search_range = (struct line) { .start = 0, .end = buf->text_sz };
-    if (m == MODE_BUFFERS) return _list_buffers();
-    else if (m == MODE_PICKER) {
+    if (m == MODE_BUFFERS) {
+        _list_buffers();
+        return;
+    } else if (m == MODE_PICKER) {
         picker_scan(&led.picker, getcwd(cwd, PATH_MAX));
         return;
     }
@@ -768,6 +779,7 @@ static void _update_goto(struct buffer *buf, int ch) {
 }
 
 static void _update_picker(struct buffer *buf, int ch) {
+    (void)buf;
     if (led.picker.num_files <= 0) {
         led.mode = MODE_NONE;
         return;
@@ -797,6 +809,7 @@ static void _update_picker(struct buffer *buf, int ch) {
 }
 
 static void _update_buffers(struct buffer *buf, int ch) {
+    (void)buf;
     if (led.picker.num_files <= 0) {
         led.mode = MODE_NONE;
         return;
@@ -840,33 +853,39 @@ static void _update_insert(struct buffer *buf, int ch) {
     case CTRL('g'):     _switch_mode(buf, MODE_GOTO); break;
     case CTRL('r'):
     case CTRL('f'):     _switch_mode(buf, MODE_FIND); break;
-    case CTRL('w'):     return _switch_buffer();
+    case CTRL('w'):     _switch_buffer(); return;
     case KEY_LEFT:      move_left(buf); break;
-    case KEY_SLEFT:     return move_left(buf);
+    case KEY_SLEFT:     move_left(buf); return;
     case KEY_RIGHT:     move_right(buf); break;
-    case KEY_SRIGHT:    return move_right(buf);
+    case KEY_SRIGHT:    move_right(buf); return;
     case KEY_UP:        move_up(buf); break;
-    case KEY_SR:        return move_up(buf);
+    case KEY_SR:        move_up(buf); return;
     case KEY_DOWN:      move_down(buf); break;
-    case KEY_SF:        return move_down(buf);
+    case KEY_SF:        move_down(buf); return;
     case KEY_FIND:
     case KEY_HOME:      move_home(buf); break;
-    case KEY_SHOME:     return move_home(buf);
+    case KEY_SHOME:     move_home(buf); return;
     case KEY_SELECT:
     case KEY_END:       move_end(buf); break;
-    case KEY_SEND:      return move_end(buf);
+    case KEY_SEND:      move_end(buf); return;
     case KEY_PPAGE:     page_up(buf); break;
-    case KEY_SPREVIOUS: return page_up(buf);
+    case KEY_SPREVIOUS: page_up(buf); return;
     case KEY_NPAGE:     page_down(buf); break;
-    case KEY_SNEXT:     return page_down(buf);
+    case KEY_SNEXT:     page_down(buf); return;
     case '\n':
         if (is_selecting(buf)) remove_selection(buf);
         insert_char(buf, '\n'); break;
     case '\t':
-        if (is_selecting(buf)) return indent_selection(buf);
+        if (is_selecting(buf)) {
+            indent_selection(buf);
+            return;
+        }
         indent(buf); break;
     case KEY_BTAB:
-        if (is_selecting(buf)) return unindent_selection(buf);
+        if (is_selecting(buf)) {
+            unindent_selection(buf);
+            return;
+        }
         unindent(buf); break;
     case KEY_DC:
         if (is_selecting(buf)) remove_selection(buf);
@@ -883,9 +902,9 @@ static void _update_insert(struct buffer *buf, int ch) {
         else if (!strcmp(key, "kUP5"))  move_up(buf);
         else if (!strcmp(key, "kDN5"))  move_down(buf);
         else if (!strcmp(key, "kLFT5")) move_prev_word(buf);
-        else if (!strcmp(key, "kLFT6")) return move_prev_word(buf);
+        else if (!strcmp(key, "kLFT6")) { move_prev_word(buf); return; }
         else if (!strcmp(key, "kRIT5")) move_next_word(buf);
-        else if (!strcmp(key, "kRIT6")) return move_next_word(buf);
+        else if (!strcmp(key, "kRIT6")) { move_next_word(buf); return; }
         else if (!strcmp(key, "kHOM5")) goto_line(buf, 1);
         else if (!strcmp(key, "kEND5")) goto_line(buf, buf->lines_sz);
         else if (isprint(ch)) {
