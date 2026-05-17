@@ -88,17 +88,16 @@ static inline void _undo_backspace(struct buffer *buf, struct action *act) {
     insert_text(buf, text, act->text_sz);
 }
 
-static inline void _center_line(struct buffer *buf, const int last_off) {
+static inline void _center_line(struct buffer *buf) {
     /* XXX: this is still kinda shit at the end of file but whatever works */
     const int off = 1 + buf->cur.line - led.wh / 2;
     if (off > 0) buf->cur.off = off;
 }
 
 static inline void _goto_action_pos(struct buffer *buf, struct action *act) {
-    int cur_off = buf->cur.off;
     buf->cur = act->cur;
     if (buf->cur.line-buf->cur.off < 0 || buf->cur.line-buf->cur.off >= led.wh-1)
-        _center_line(buf, cur_off);
+        _center_line(buf);
 }
 
 void undo_action(struct buffer *buf) {
@@ -419,7 +418,6 @@ static char *_casestrstr(const char *haystack, const char *needle) {
 
 void find_string(struct buffer *buf, char *to_find) {
     char *str = NULL, c = buf->text[buf->search_range.end+1];
-    int cur_off = buf->cur.off;
     buf->text[buf->search_range.end+1] = 0;
     if ((str = _casestrstr(buf->text+buf->cur.cur+1, to_find))) {
         while (buf->text+buf->cur.cur != str && buf->cur.cur < buf->search_range.end) move_right(buf);
@@ -429,7 +427,7 @@ void find_string(struct buffer *buf, char *to_find) {
     } else goto end;
     buf->cur.sel = buf->cur.cur;
     buf->cur.cur += strlen(to_find)-1;
-    _center_line(buf, cur_off);
+    _center_line(buf);
 end:
     buf->text[buf->search_range.end+1] = c;
 }
@@ -450,11 +448,10 @@ void replace_string(struct buffer *buf, char *to_replace, char *str) {
 
 void goto_line(struct buffer *buf, long line) {
     if (line == 0) return;
-    int cur_off = buf->cur.off;
     buf->cur.cur = buf->cur.off = buf->cur.line = 0;
     for (int i = 0; i < MIN(line-1, buf->lines_sz); ++i) move_down(buf);
     buf->cur.sel = buf->cur.cur;
-    _center_line(buf, cur_off);
+    _center_line(buf);
 }
 
 static void _goto_start_of_selection(struct buffer *buf) {
@@ -932,7 +929,7 @@ static void _update(struct buffer *buf) {
         getmaxyx(stdscr, led.wh, led.ww);
         for (struct buffer *b = led.buffers; b != &led.buffers[led.num_buffers]; ++b) {
             if (b->cur.line-b->cur.off < 0 || b->cur.line-b->cur.off >= led.wh-1)
-                _center_line(b, b->cur.off);
+                _center_line(b);
         }
     } else update_fns[led.mode](buf, ch);
 }
