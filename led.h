@@ -19,12 +19,11 @@
 struct line { int start, end; };
 struct cursor { int cur, off, line, sel; };
 
-enum : int { MODE_NONE, MODE_EXIT, MODE_FIND, MODE_REPLACE, MODE_GOTO, MODE_PICKER, MODE_BUFFERS };
-
+enum { MODE_NONE, MODE_EXIT, MODE_FIND, MODE_REPLACE, MODE_GOTO, MODE_PICKER, MODE_BUFFERS };
+enum { ACTION_INSERT, ACTION_DELETE, ACTION_BACKSPACE };
 struct action {
-    enum : int { ACTION_INSERT, ACTION_DELETE, ACTION_BACKSPACE } type;
+    int type, text_sz, text_cap;
     struct cursor cur;
-    int text_sz, text_cap;
     char *text;
 };
 
