@@ -18,7 +18,7 @@ static struct {
 } opts;
 
 static struct {
-    int mode, ww, wh, num_buffers, max_buffers;
+    int mode, ww, wh, num_buffers, max_buffers, rulersz;
     struct buffer *buffers, *cur_buffer;
     struct inputbox input, input_find;
     struct filepicker picker;
@@ -135,7 +135,7 @@ static void _append_line(struct buffer *buf, struct line line) {
 }
 
 static void _count_lines(struct buffer *buf) {
-    int line_start = buf->lines_sz = 0;
+    int num_lines = buf->lines_sz, line_start = buf->lines_sz = 0;
     for (int i = 0; i < buf->text_sz; ++i) {
         if (buf->text[i] == '\n') {
             _append_line(buf, (struct line) { line_start, i });
@@ -146,6 +146,10 @@ static void _count_lines(struct buffer *buf) {
         buf->cur.cur = buf->text_sz;
         insert_char(buf, '\n');
         buf->cur.cur = 0;
+    }
+    if (opts.show_numbers && num_lines != buf->lines_sz) {
+        char ln[16];
+        led.rulersz = snprintf(ln, sizeof(ln), "%d", buf->lines_sz);
     }
 }
 
@@ -166,13 +170,13 @@ static void _init_curses(void) {
     sprintf(key, "%c%c", 198, 146); define_key(key, KEY_SRIGHT);
     sprintf(key, "%c%c", 198, 140); define_key(key, KEY_SNEXT);
     sprintf(key, "%c%c", 198, 142); define_key(key, KEY_SPREVIOUS);
-    sprintf(key, "%c%c", 200, 144); define_key(key, 528); // kDC5
-    sprintf(key, "%c%c", 200, 155); define_key(key, 539); // kEND5
-    sprintf(key, "%c%c", 200, 160); define_key(key, 544); // kHOM5
-    sprintf(key, "%c%c", 200, 170); define_key(key, 554); // kLFT5
-    sprintf(key, "%c%c", 200, 171); define_key(key, 555); // kLFT6
-    sprintf(key, "%c%c", 200, 185); define_key(key, 569); // kRIT5
-    sprintf(key, "%c%c", 200, 186); define_key(key, 570); // kRIT6
+    sprintf(key, "%c%c", 200, 144); define_key(key, 528); /* kDC5 */
+    sprintf(key, "%c%c", 200, 155); define_key(key, 539); /* kEND5 */
+    sprintf(key, "%c%c", 200, 160); define_key(key, 544); /* kHOM5 */
+    sprintf(key, "%c%c", 200, 170); define_key(key, 554); /* kLFT5 */
+    sprintf(key, "%c%c", 200, 171); define_key(key, 555); /* kLFT6 */
+    sprintf(key, "%c%c", 200, 185); define_key(key, 569); /* kRIT5 */
+    sprintf(key, "%c%c", 200, 186); define_key(key, 570); /* kRIT6 */
 #endif
 }
 
@@ -185,13 +189,11 @@ struct buffer *create_buffer(char *name) {
     if (led.num_buffers >= led.max_buffers)
         led.buffers = realloc(led.buffers, (led.max_buffers *= 1.5)*sizeof(struct buffer));
     struct buffer *buf = &led.buffers[led.num_buffers++];
-    buf->text = NULL, buf->name = name;
+    buf->is_undo = buf->is_readonly = FALSE, buf->action = buf->last_change = -1;
+    buf->text = NULL, buf->name = name, buf->cur = (struct cursor) {0};
     buf->lines = malloc((buf->lines_cap = ALLOC_SIZE)*sizeof(struct line));
     buf->actions = malloc((buf->actions_cap = ALLOC_SIZE)*sizeof(struct action));
     buf->text_sz = buf->text_cap = buf->lines_sz = buf->actions_sz = 0;
-    buf->cur = (struct cursor) {0};
-    buf->is_undo = buf->is_readonly = FALSE;
-    buf->action = buf->last_change = -1;
     return buf;
 }
 
@@ -207,7 +209,7 @@ void close_buffer(struct buffer *buf) {
 }
 
 void exit_program(void) {
-    for (led.cur_buffer = &led.buffers[0]; led.num_buffers != 0;) close_buffer(led.cur_buffer);
+    for (led.cur_buffer = led.buffers; led.num_buffers != 0;) close_buffer(led.cur_buffer);
     _quit_curses();
     exit(0);
 }
@@ -322,7 +324,6 @@ void page_down(struct buffer *buf) {
 }
 
 #define DELIM(C) (isspace(C) || !(isalnum(C) || (C) == '_'))
-
 void move_next_word(struct buffer *buf) {
     if (buf->cur.cur+1 >= buf->text_sz) return;
     if (DELIM(buf->text[buf->cur.cur+1]))
@@ -337,7 +338,7 @@ void move_prev_word(struct buffer *buf) {
     else while (buf->cur.cur > 1 && !DELIM(buf->text[buf->cur.cur-1])) move_left(buf);
 }
 
-// XXX: UTF-8 lmao
+/* XXX: UTF-8 lmao */
 void insert_text(struct buffer *buf, char *text, int sz) {
     if (buf->is_readonly) return;
     if (buf->text_sz+sz >= buf->text_cap)
@@ -389,11 +390,11 @@ void remove_next_word(struct buffer *buf) {
     remove_selection(buf);
 }
 
-void indent(struct buffer *buf) {
+void indent_line(struct buffer *buf) {
     if (buf->is_readonly) return;
     int cur = buf->cur.cur, add = 1;
     buf->cur.cur = buf->lines[buf->cur.line].start;
-    // XXX: some filetype detection would be pretty handy later on
+    /* XXX: some filetype detection would be pretty handy later on */
     if (!opts.expand_tabs || strcasestr(buf->name, "makefile")) insert_char(buf, '\t');
     else for (add = 0; add < opts.tab_width; ++add) insert_char(buf, ' ');
     buf->cur.cur = cur + add;
@@ -401,7 +402,7 @@ void indent(struct buffer *buf) {
     if (buf->cur.cur < buf->lines[buf->cur.line].start) buf->cur.cur = buf->lines[buf->cur.line].start;
 }
 
-void unindent(struct buffer *buf) {
+void unindent_line(struct buffer *buf) {
     if (buf->is_readonly) return;
     int cur = buf->cur.cur, rem = 1;
     buf->cur.cur = buf->lines[buf->cur.line].start;
@@ -425,8 +426,7 @@ void find_string(struct buffer *buf, char *to_find) {
         while (buf->cur.cur > buf->search_range.start) move_left(buf);
         while (buf->text+buf->cur.cur != str && buf->cur.cur < buf->search_range.end) move_right(buf);
     } else goto end;
-    buf->cur.sel = buf->cur.cur;
-    buf->cur.cur += strlen(to_find)-1;
+    buf->cur.sel = buf->cur.cur, buf->cur.cur += strlen(to_find)-1;
     _center_line(buf);
 end:
     buf->text[buf->search_range.end+1] = c;
@@ -447,10 +447,9 @@ void replace_string(struct buffer *buf, char *to_replace, char *str) {
 }
 
 void goto_line(struct buffer *buf, long line) {
-    if (line == 0) return;
-    buf->cur.cur = buf->cur.off = buf->cur.line = 0;
-    for (int i = 0; i < MIN(line-1, buf->lines_sz); ++i) move_down(buf);
-    buf->cur.sel = buf->cur.cur;
+    if (line <= 0) return;
+    line = MIN(line-1, buf->lines_sz-1);
+    buf->cur.line = buf->cur.off = line, buf->cur.cur = buf->lines[line].start;
     _center_line(buf);
 }
 
@@ -468,9 +467,7 @@ void remove_selection(struct buffer *buf) {
     }
     struct line sel = get_selection(buf);
     _goto_start_of_selection(buf);
-    // make sure it doesn't try to delete text out of bounds
-    if (sel.end >= buf->text_sz-1) sel.end = buf->text_sz-2;
-    remove_text(buf, FALSE, (sel.end-sel.start)+1);
+    remove_text(buf, FALSE, MIN(sel.end, buf->text_sz-2) - sel.start + 1);
 }
 
 void copy_selection(struct buffer *buf) {
@@ -523,25 +520,31 @@ static inline void _operate_on_lines(struct buffer *buf, void (*fn)(struct buffe
         if (buf->cur.sel >= line->start && buf->cur.sel <= line->end)
             break;
     }
-    // XXX: move cursor to where it was before instead of beginning of selection
+    /* XXX: move cursor to where it was before instead of beginning of selection */
     while (buf->cur.cur > sel.start) move_left(buf);
 }
 
-void indent_selection(struct buffer *buf) { _operate_on_lines(buf, indent); }
-void unindent_selection(struct buffer *buf) { _operate_on_lines(buf, unindent); }
+void indent_selection(struct buffer *buf) {
+    if (is_selecting(buf)) _operate_on_lines(buf, indent_line);
+    else { indent_line(buf); buf->cur.sel = buf->cur.cur; }
+}
+
+void unindent_selection(struct buffer *buf) {
+    if (is_selecting(buf)) _operate_on_lines(buf, unindent_line);
+    else { unindent_line(buf); buf->cur.sel = buf->cur.cur; }
+}
 
 static inline bool _is_selected(struct buffer *buf, int i) {
     struct line sel = get_selection(buf);
     return (is_selecting(buf) && i >= sel.start && i <= sel.end);
 }
 
-static void _render_line(struct buffer *buf, int l, int off, int lineoff) {
+static void _render_line(struct buffer *buf, int l, int off) {
     struct line line = buf->lines[l];
-    int sz = off;
+    int sz = off, attr;
     for (int i = line.start; i <= line.end; ++i) {
-        int attr = 0;
         if (buf->cur.cur == i) buf->cur_x = sz, buf->cur_y = l-buf->cur.off;
-        if (_is_selected(buf, i)) attr = CFG_ATTRSELECT;
+        attr = (_is_selected(buf, i))? CFG_ATTRSELECT : A_NORMAL;
         if (i < buf->search_range.start || i > buf->search_range.end) attr |= CFG_ATTRUNSELECT;
         attron(attr);
         mvprintw(l-buf->cur.off, sz, "%c", isspace(buf->text[i])? ' ' : buf->text[i]);
@@ -555,9 +558,9 @@ static void _render_line(struct buffer *buf, int l, int off, int lineoff) {
         attroff(attr);
     }
     if (opts.show_numbers) {
-        const int attr = (l == buf->cur.line)? CFG_ATTRCURLINE : CFG_ATTRLINENO;
+        attr = (l == buf->cur.line)? CFG_ATTRCURLINE : CFG_ATTRLINENO;
         attron(attr);
-        mvprintw(l-buf->cur.off, 0, " %*d ", lineoff, l+1);
+        mvprintw(l-buf->cur.off, 0, " %*d ", led.rulersz, l+1);
         attroff(attr);
     }
 }
@@ -574,16 +577,11 @@ static void _render_text(struct buffer *buf) {
         picker_render(&led.picker);
         return;
     }
-    int cur_off = _calculate_line_size(buf), lineoff = 0, off = 0;
-    if (opts.show_numbers) {
-        char linenu[16];
-        sprintf(linenu, "%d", buf->lines_sz);
-        off = 2+(lineoff = strlen(linenu));
-    }
+    int cur_off = _calculate_line_size(buf), off = led.rulersz? led.rulersz+2 : 0;
     if (cur_off+off > led.ww-2) off = (led.ww-2)-cur_off;
     for (int i = buf->cur.off; i < buf->cur.off+led.wh-1; ++i) {
         if (i >= buf->lines_sz) break;
-        _render_line(buf, i, off, lineoff);
+        _render_line(buf, i, off);
     }
 }
 
@@ -594,7 +592,7 @@ static inline char *_mode_to_cstr(void) {
     case MODE_FIND: return "Find: ";
     case MODE_GOTO: return "Goto: ";
     case MODE_REPLACE: {
-        sprintf(str, "Replace(%.*s): ", led.input_find.text_sz, led.input_find.text);
+        snprintf(str, ALLOC_SIZE, "Replace(%.*s): ", led.input_find.text_sz, led.input_find.text);
         return str;
     }
     default: return "None";
@@ -602,23 +600,19 @@ static inline char *_mode_to_cstr(void) {
 }
 
 char *get_filename(const char *name, int fmt_type) {
-    char *path = calloc(1, PATH_MAX);
+    char *path = calloc(1, PATH_MAX), *str;
     switch (fmt_type) {
-    default: {
-        strcat(path, name);
-    } break;
-    case STATUS_FILENAME: {
-        char *s;
-        for (s = (char*)name+strlen(name)-1; s > name && *s != '/'; --s);
-        strcat(path, s + ((*s == '/')? 1 : 0));
-    } break;
-    case STATUS_FILEPATH: {
-        const char *home = getenv("HOME");
-        if (strstr(name, home) != NULL) {
+    default: strcat(path, name); break;
+    case STATUS_FILENAME:
+        for (str = (char*)name+strlen(name)-1; str > name && *str != '/'; --str);
+        strcat(path, str + ((*str == '/')? 1 : 0));
+        break;
+    case STATUS_FILEPATH:
+        if (strstr(name, str = getenv("HOME")) != NULL) {
             strcat(path, "~");
-            strcat(path, name+strlen(home));
+            strcat(path, name+strlen(str));
         } else strcat(path, name);
-    } break;
+        break;
     }
     return path;
 }
@@ -650,9 +644,8 @@ static void _render_status(void) {
         const char *astr = led.mode >= MODE_PICKER? "Find: " : _mode_to_cstr();
         if (led.mode >= MODE_PICKER && !led.picker.is_searching) goto end;
         mvprintw(led.wh-1, 0, "%s", astr);
-        const int s = strlen(astr), cap = s+strlen(status), at = (attr&A_REVERSE)? A_NORMAL : A_REVERSE;
-        const int w = cap+5 > led.ww? led.ww-s : led.ww-cap;
-        if (led.mode != MODE_EXIT) input_render(inp, strlen(astr), led.wh-1, w, at);
+        const int s = strlen(astr), cap = s+strlen(status), w = cap+5 > led.ww? led.ww-s : led.ww-cap;
+        if (led.mode != MODE_EXIT) input_render(inp, strlen(astr), led.wh-1, w, (attr&A_REVERSE)?A_NORMAL:A_REVERSE);
     }
 end:
     free(name);
@@ -660,24 +653,16 @@ end:
 }
 
 static void _find_next(struct buffer *buf, struct inputbox input) {
-    char *text = strndup(input.text, input.text_sz);
-    find_string(buf, text);
-    free(text);
+    find_string(buf, input.text);
 }
 
 static void _replace_current(struct buffer *buf) {
-    char *to_replace = strndup(led.input_find.text, led.input_find.text_sz);
-    char *replace_with = strndup(led.input.text, led.input.text_sz);
-    replace_string(buf, to_replace, replace_with);
-    free(to_replace);
-    free(replace_with);
+    replace_string(buf, led.input_find.text, led.input.text);
 }
 
 static void _jump_to_line(struct buffer *buf) {
-    char text[INPUTBOX_TEXT_SIZE] = {0};
-    memcpy(text, led.input.text, led.input.text_sz);
-    long line = strtol(text, NULL, 0);
-    goto_line(buf, line);
+    goto_line(buf, strtol(led.input.text, NULL, 0));
+    buf->cur.sel = buf->cur.cur;
 }
 
 static void _switch_buffer(void) {
@@ -700,19 +685,15 @@ static void _list_buffers(void) {
 }
 
 void switch_mode(struct buffer *buf, int mode) {
-    char cwd[PATH_MAX];
-    buf->search_range = (struct line) { .start = 0, .end = buf->text_sz };
-    led.mode = mode;
-    if (mode == MODE_BUFFERS) {
-        _list_buffers();
-        return;
-    } else if (mode == MODE_PICKER) {
-        picker_scan(&led.picker, led.cwd);
-        return;
-    } else if (mode == MODE_FIND && buf->cur.sel != buf->cur.cur) {
-        buf->search_range = get_selection(buf);
+    /* i just like writing goofy code sometimes ok */
+    buf->search_range = (mode == MODE_FIND && buf->cur.sel != buf->cur.cur)
+                      ? get_selection(buf)
+                      : (struct line) { .start = 0, .end = buf->text_sz };
+    switch (led.mode = mode) {
+    case MODE_BUFFERS: _list_buffers(); return;
+    case MODE_PICKER:  picker_scan(&led.picker, led.cwd); return;
+    default: input_reset(&led.input); break;
     }
-    input_reset(&led.input);
 }
 
 static bool _update_none(int ch) {
@@ -727,21 +708,12 @@ static void _update_replace(struct buffer *buf, int ch) {
     if (_update_none(ch)) {
         led.input = led.input_find;
         return;
-    } else if (ch == '\n' || ch == CTRL('r')) {
-        if (led.input_find.text_sz) {
-            _replace_current(buf);
-            _find_next(buf, led.input_find);
-        }
-        return;
-    } else if (ch == CTRL('f')) {
-        led.input = led.input_find;
-        led.mode = MODE_FIND;
-        return;
-    } else if (ch == CTRL('n')) {
-        if (led.input_find.text_sz)
-            _find_next(buf, led.input_find);
-    }
-    input_update(&led.input, ch);
+    } else if ((ch == '\n' || ch == CTRL('r')) && led.input_find.text_sz) {
+        _replace_current(buf);
+        _find_next(buf, led.input_find);
+    } else if (ch == CTRL('f')) led.input = led.input_find, led.mode = MODE_FIND;
+    else if (ch == CTRL('n') && led.input_find.text_sz) _find_next(buf, led.input_find);
+    else input_update(&led.input, ch);
 }
 
 static void _update_exit(struct buffer *buf, int ch) {
@@ -752,16 +724,12 @@ static void _update_exit(struct buffer *buf, int ch) {
 
 static void _update_find(struct buffer *buf, int ch) {
     if (_update_none(ch)) return;
-    if (ch == '\n' || ch == CTRL('f') || ch == CTRL('n')) {
-        if (led.input.text_sz) _find_next(buf, led.input);
-        return;
-    } else if (ch == CTRL('r') && led.input.text_sz) {
-        led.mode = MODE_REPLACE;
-        led.input_find = led.input;
+    if ((ch == '\n' || ch == CTRL('f') || ch == CTRL('n')) && led.input.text_sz)
+        _find_next(buf, led.input);
+    else if (ch == CTRL('r') && led.input.text_sz) {
+        led.mode = MODE_REPLACE, led.input_find = led.input;
         input_reset(&led.input);
-        return;
-    }
-    input_update(&led.input, ch);
+    } else input_update(&led.input, ch);
 }
 
 static void _update_goto(struct buffer *buf, int ch) {
@@ -769,9 +737,7 @@ static void _update_goto(struct buffer *buf, int ch) {
     if (ch == '\n') {
         if (led.input.text_sz) _jump_to_line(buf);
         led.mode = MODE_NONE;
-        return;
-    }
-    input_update(&led.input, ch);
+    } else input_update(&led.input, ch);
 }
 
 static void _update_picker(struct buffer *buf, int ch) {
@@ -826,7 +792,7 @@ static void _update_buffers(struct buffer *buf, int ch) {
 
 static void _update_insert(struct buffer *buf, int ch) {
     const char *key = keyname(ch);
-    // XXX: configurable keys
+    /* XXX: configurable keys */
     switch (ch) {
     case CTRL('q'):
         if (buf->last_change != buf->action) led.mode = MODE_EXIT;
@@ -868,21 +834,8 @@ static void _update_insert(struct buffer *buf, int ch) {
     case KEY_SPREVIOUS: page_up(buf); return;
     case KEY_NPAGE:     page_down(buf); break;
     case KEY_SNEXT:     page_down(buf); return;
-    case '\n':
-        if (is_selecting(buf)) remove_selection(buf);
-        insert_char(buf, '\n'); break;
-    case '\t':
-        if (is_selecting(buf)) {
-            indent_selection(buf);
-            return;
-        }
-        indent(buf); break;
-    case KEY_BTAB:
-        if (is_selecting(buf)) {
-            unindent_selection(buf);
-            return;
-        }
-        unindent(buf); break;
+    case '\t':          indent_selection(buf); return;
+    case KEY_BTAB:      unindent_selection(buf); return;
     case KEY_DC:
         if (is_selecting(buf)) remove_selection(buf);
         else remove_char(buf, FALSE);
@@ -891,10 +844,9 @@ static void _update_insert(struct buffer *buf, int ch) {
         if (is_selecting(buf)) remove_selection(buf);
         else if (buf->cur.cur != 0) remove_char(buf, TRUE);
         break;
-    case 8: case 127: // ctrl + backspace
-        remove_prev_word(buf); break;
     default:
         if (!strcmp(key, "kDC5"))       remove_next_word(buf);
+        else if (!strcmp(key, "^H"))    remove_prev_word(buf);
         else if (!strcmp(key, "kUP5"))  move_up(buf);
         else if (!strcmp(key, "kDN5"))  move_down(buf);
         else if (!strcmp(key, "kLFT5")) move_prev_word(buf);
@@ -903,7 +855,7 @@ static void _update_insert(struct buffer *buf, int ch) {
         else if (!strcmp(key, "kRIT6")) { move_next_word(buf); return; }
         else if (!strcmp(key, "kHOM5")) goto_line(buf, 1);
         else if (!strcmp(key, "kEND5")) goto_line(buf, buf->lines_sz);
-        else if (isprint(ch)) {
+        else if (isprint(ch) || ch == '\n') {
             if (is_selecting(buf)) remove_selection(buf);
             insert_char(buf, ch);
         }
