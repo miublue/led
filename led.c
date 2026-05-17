@@ -90,7 +90,8 @@ static inline void _undo_backspace(struct buffer *buf, struct action *act) {
 
 static inline void _center_line(struct buffer *buf) {
     const int off = 1 + buf->cur.line - led.wh / 2;
-    if (off > 0 || buf->cur.off >= buf->lines_sz-1) buf->cur.off = off;
+    if (off > 0) buf->cur.off = off;
+    else buf->cur.off = 0;
 }
 
 static inline void _goto_action_pos(struct buffer *buf, struct action *act) {
@@ -454,7 +455,7 @@ void replace_string(struct buffer *buf, char *to_replace, char *str) {
 void goto_line(struct buffer *buf, long line) {
     if (line <= 0) return;
     line = MIN(line-1, buf->lines_sz-1);
-    buf->cur.line = buf->cur.off = line, buf->cur.cur = buf->lines[line].start;
+    buf->cur.off = (buf->cur.line = line) - led.wh/2, buf->cur.cur = buf->lines[line].start;
     _center_line(buf);
 }
 
@@ -915,7 +916,7 @@ int main(int argc, char **argv) {
         else if (strchr("Ll", opt)) opts.show_numbers = opt == 'L';
         else if (strchr("Rr", opt)) opts.is_readonly  = opt == 'R';
         else if (opt == 'v') { fprintf(stdout, "%s %s\n", argv[0], VERSION); exit(0); }
-        else if (opt == 't') opts.tab_width = atoi(optarg)? : opts.tab_width;
+        else if (opt == 't') { int i=atoi(optarg); opts.tab_width = i? i : opts.tab_width; }
         else _usage(argv[0], opt == 'h');
     }
     for (int i = optind; i < argc; ++i) {
