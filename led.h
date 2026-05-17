@@ -3,7 +3,7 @@
 
 #include <stdlib.h>
 
-#define VERSION "1.53"
+#define VERSION "1.62"
 #define LENGTH(x) (sizeof(x)/sizeof((x)[0]))
 #define CTRL(c) ((c) & 0x1f)
 #define ALLOC_SIZE 512
