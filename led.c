@@ -693,9 +693,12 @@ static void _switch_mode(struct buffer *buf, int m) {
     char cwd[PATH_MAX];
     led.mode = m;
     buf->search_range = (struct line) { .start = 0, .end = buf->text_sz };
-    if (m == MODE_PICKER) picker_scan(&led.picker, getcwd(cwd, PATH_MAX));
-    else if (m == MODE_BUFFERS) _list_buffers();
-    else if (m == MODE_FIND && buf->cur.sel != buf->cur.cur)
+    if (m == MODE_BUFFERS) return _list_buffers();
+    else if (m == MODE_PICKER) {
+        picker_scan(&led.picker, getcwd(cwd, PATH_MAX));
+        return;
+    }
+    if (m == MODE_FIND && buf->cur.sel != buf->cur.cur)
         buf->search_range = (struct line) {
             .start = MIN(buf->cur.cur, buf->cur.sel),
             .end = MAX(buf->cur.cur, buf->cur.sel),
