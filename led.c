@@ -152,6 +152,12 @@ static void _count_lines(struct buffer *buf) {
     }
 }
 
+static void _keepup_cursor(struct buffer *buf) {
+    buf->cur.sel = buf->cur.cur; /* sometimes the cursor just has to keep up */
+    if (led.mode != MODE_FIND && led.mode != MODE_REPLACE)
+        buf->search_range = (struct line) { .start = 0, .end = buf->text_sz };
+}
+
 static void _init_curses(void) {
     initscr();
     raw();
@@ -525,12 +531,12 @@ static inline void _operate_on_lines(struct buffer *buf, void (*fn)(struct buffe
 
 void indent_selection(struct buffer *buf) {
     if (is_selecting(buf)) _operate_on_lines(buf, indent_line);
-    else { indent_line(buf); buf->cur.sel = buf->cur.cur; }
+    else { indent_line(buf); _keepup_cursor(buf); }
 }
 
 void unindent_selection(struct buffer *buf) {
     if (is_selecting(buf)) _operate_on_lines(buf, unindent_line);
-    else { unindent_line(buf); buf->cur.sel = buf->cur.cur; }
+    else { unindent_line(buf); _keepup_cursor(buf); }
 }
 
 static inline bool _is_selected(struct buffer *buf, int i) {
@@ -861,9 +867,7 @@ static void _update_insert(struct buffer *buf, int ch) {
         }
         break;
     }
-    buf->cur.sel = buf->cur.cur;
-    if (led.mode != MODE_FIND && led.mode != MODE_REPLACE)
-        buf->search_range = (struct line) { .start = 0, .end = buf->text_sz };
+    _keepup_cursor(buf);
 }
 
 static void _update(struct buffer *buf) {
