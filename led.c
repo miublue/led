@@ -483,15 +483,17 @@ void copy_selection(struct buffer *buf) {
     if (!file) return;
     fwrite(buf->text+sel.start, 1, sel.end-sel.start+1, file);
     fclose(file);
+#ifdef _USE_X11
     if (system("cat '/tmp/ledsel' | xsel -b 2> /dev/null")){}
+#endif
 }
 
 void paste_text(struct buffer *buf) {
     if (buf->is_readonly) return;
     if (is_selecting(buf)) remove_selection(buf);
-    // a bit roundabout, but probably still faster than pasting
-    // from terminal and inserting the text character by character
+#ifdef _USE_X11
     if (system("xsel -bo 2> /dev/null > /tmp/ledsel")){}
+#endif
     int sz;
     FILE *file = fopen("/tmp/ledsel", "r");
     if (!file) return;

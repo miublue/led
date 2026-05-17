@@ -3,9 +3,14 @@ LIBS = -lncurses
 PREFIX = /usr/local
 CFLAGS = -Wall -Werror
 USEMTM = 1
+USEX11 = 1
 
 ifdef USEMTM
 	CFLAGS += -D_USE_MTM
+endif
+
+ifdef USEX11
+	CFLAGS += -D_USE_X11
 endif
 
 all:
