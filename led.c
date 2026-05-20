@@ -491,7 +491,7 @@ void copy_selection(struct buffer *buf) {
     if (!file) return;
     fwrite(buf->text+sel.start, 1, sel.end-sel.start+1, file);
     fclose(file);
-#ifdef _USE_X11
+#ifdef _USE_XSEL
     if (system("cat '/tmp/ledsel' | xsel -b 2> /dev/null")){}
 #endif
 }
@@ -499,7 +499,7 @@ void copy_selection(struct buffer *buf) {
 void paste_text(struct buffer *buf) {
     if (buf->is_readonly) return;
     if (is_selecting(buf)) remove_selection(buf);
-#ifdef _USE_X11
+#ifdef _USE_XSEL
     if (system("xsel -bo 2> /dev/null > /tmp/ledsel")){}
 #endif
     int sz;
@@ -843,6 +843,7 @@ static void _update_insert(struct buffer *buf, int ch) {
     case KEY_SNEXT:     page_down(buf); return;
     case '\t':          indent_selection(buf); return;
     case KEY_BTAB:      unindent_selection(buf); return;
+    case 8: case 127:   remove_prev_word(buf); break;
     case KEY_DC:
         if (is_selecting(buf)) remove_selection(buf);
         else remove_char(buf, FALSE);
@@ -853,7 +854,6 @@ static void _update_insert(struct buffer *buf, int ch) {
         break;
     default:
         if (!strcmp(key, "kDC5"))       remove_next_word(buf);
-        else if (!strcmp(key, "^H"))    remove_prev_word(buf);
         else if (!strcmp(key, "kUP5"))  move_up(buf);
         else if (!strcmp(key, "kDN5"))  move_down(buf);
         else if (!strcmp(key, "kLFT5")) move_prev_word(buf);
