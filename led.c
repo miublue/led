@@ -625,6 +625,10 @@ char *get_filename(const char *name, int fmt_type) {
 }
 
 static void _render_status(void) {
+    static const char *_picker_mode_str[] = {
+        [PICKER_FIND] = "Find: ",
+        [PICKER_EXEC] = "Exec: ",
+    };
     char status[ALLOC_SIZE] = {0}, *name;
     struct buffer *buf = led.cur_buffer;
     int attr = CFG_ATTRSTATUS;
@@ -648,8 +652,8 @@ static void _render_status(void) {
     mvprintw(led.wh-1, led.ww-strlen(status), "%s", status);
     if (led.mode != MODE_NONE) {
         struct inputbox *inp = led.mode >= MODE_PICKER? &led.picker.input : &led.input;
-        const char *astr = led.mode >= MODE_PICKER? "Find: " : _mode_to_cstr();
-        if (led.mode >= MODE_PICKER && !led.picker.is_searching) goto end;
+        const char *astr = led.mode >= MODE_PICKER? _picker_mode_str[led.picker.mode] : _mode_to_cstr();
+        if (led.mode >= MODE_PICKER && !led.picker.mode) goto end;
         mvprintw(led.wh-1, 0, "%s", astr);
         const int s = strlen(astr), cap = s+strlen(status), w = cap+5 > led.ww? led.ww-s : led.ww-cap;
         if (led.mode != MODE_EXIT) input_render(inp, strlen(astr), led.wh-1, w, (attr&A_REVERSE)?A_NORMAL:A_REVERSE);
@@ -754,8 +758,8 @@ static void _update_picker(struct buffer *buf, int ch) {
         led.mode = MODE_NONE;
         return;
     }
-    if (!led.picker.is_searching && _update_none(ch)) return;
-    if (!led.picker.is_searching && ch == '\n') {
+    if (!led.picker.mode && _update_none(ch)) return;
+    if (!led.picker.mode && ch == '\n') {
         led.mode = MODE_NONE;
         char name[PATH_MAX];
         struct filepicker_entry *sel_file = &led.picker.files[led.picker.cur];
@@ -784,8 +788,8 @@ static void _update_buffers(struct buffer *buf, int ch) {
         led.mode = MODE_NONE;
         return;
     }
-    if (!led.picker.is_searching && _update_none(ch)) return;
-    if (!led.picker.is_searching && ch == '\n') {
+    if (!led.picker.mode && _update_none(ch)) return;
+    if (!led.picker.mode && ch == '\n') {
         led.mode = MODE_NONE;
         struct filepicker_entry *sel_buf = &led.picker.files[led.picker.cur];
         for (int i = 0; i < led.num_buffers; ++i) {

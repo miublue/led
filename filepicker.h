@@ -11,11 +11,12 @@
 #define FILEPICKER_FILES_MAX 1024
 #endif
 
+enum { PICKER_NONE, PICKER_FIND, PICKER_EXEC };
 struct filepicker_entry { char is_dir, *name; };
 struct filepicker {
     char path[FILEPICKER_PATH_MAX];
     struct filepicker_entry files[FILEPICKER_FILES_MAX];
-    int num_files, cur, off, ww, wh, is_searching;
+    int num_files, cur, off, ww, wh, mode;
     struct inputbox input;
 };
 
@@ -77,7 +78,7 @@ static void _picker_move(struct filepicker *fp, int dir) {
     if (fp->wh != 0 && fp->cur-fp->off >= fp->wh-1) ++fp->off;
 }
 
-static void _picker_find(struct filepicker *fp, char *name) {
+static void _picker_find_next(struct filepicker *fp, char *name) {
     int cur = fp->cur, off = fp->off, pos;
     for (pos = cur+1; pos < fp->num_files; ++pos)
         if (strcasestr(fp->files[pos].name, name)) goto jmp;
@@ -89,28 +90,35 @@ jmp:
     for (fp->cur = fp->off = 0; fp->cur < pos; _picker_move(fp, 1)){}
 }
 
-static void _picker_find_next(struct filepicker *fp) {
-    if (!fp->input.text_sz) return;
-    char *name = strndup(fp->input.text, fp->input.text_sz);
-    _picker_find(fp, name);
-    free(name);
+static void _picker_find(struct filepicker *fp) {
+    _picker_find_next(fp, fp->input.text);
 }
 
-static void _picker_update_find(struct filepicker *fp, int ch) {
+static void _picker_exec(struct filepicker *fp) {
+    char cmd[4096], cur[PATH_MAX];
+    strcpy(cur, fp->files[fp->cur].name);
+    snprintf(cmd, sizeof(cmd), "cd %s && %s", fp->path, fp->input.text);
+    system(cmd);
+    picker_scan(fp, NULL);
+    _picker_find_next(fp, cur);
+}
+
+static void _picker_update_mode(struct filepicker *fp, int ch, void (*fn)(struct filepicker*)) {
     if (ch == CTRL('q') || ch == CTRL('c')) {
-        fp->is_searching = 0;
+        fp->mode = PICKER_NONE;
         return;
     }
-    if ((ch == CTRL('f') || ch == '\n') && fp->input.text_sz) {
-        _picker_find_next(fp);
-        fp->is_searching = 0;
+    if (ch == '\n' && fp->input.text_sz) {
+        fn(fp);
+        fp->mode = PICKER_NONE;
     } else input_update(&fp->input, ch);
 }
 
 void picker_update(struct filepicker *fp, int ch) {
-    if (fp->is_searching) {
-        _picker_update_find(fp, ch);
-        return;
+    switch (fp->mode) {
+    case PICKER_FIND: _picker_update_mode(fp, ch, &_picker_find); return;
+    case PICKER_EXEC: _picker_update_mode(fp, ch, &_picker_exec); return;
+    default: break;
     }
     switch (ch) {
     case KEY_UP:
@@ -133,10 +141,16 @@ void picker_update(struct filepicker *fp, int ch) {
         break;
     case CTRL('f'):
         input_reset(&fp->input);
-        fp->is_searching = 1;
+        fp->mode = PICKER_FIND;
+        break;
+    case CTRL('e'): /* idk if strcmp is the best idea but it works for now so whatevs */
+        if (strcmp(fp->path, "*BUFFERS*") != 0) {
+            input_reset(&fp->input);
+            fp->mode = PICKER_EXEC;
+        }
         break;
     case CTRL('n'): case 'n':
-        if (fp->input.text_sz) _picker_find_next(fp);
+        if (fp->input.text_sz) _picker_find(fp);
         break;
     }
 }
@@ -160,7 +174,7 @@ void picker_reset(struct filepicker *fp) {
         for (int i = 0; i < fp->num_files; ++i)
             free(fp->files[i].name);
     }
-    fp->cur = fp->off = fp->num_files = fp->is_searching = 0;
+    fp->cur = fp->off = fp->num_files = fp->mode = 0;
     input_reset(&fp->input);
 }
 
