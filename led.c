@@ -89,7 +89,8 @@ static inline void _undo_backspace(struct buffer *buf, struct action *act) {
 }
 
 static inline void _center_line(struct buffer *buf) {
-    const int off = 1 + buf->cur.line - led.wh / 2;
+    int off = 1 + buf->cur.line - led.wh / 2;
+    if (off + led.wh >= buf->lines_sz) off = 1 + buf->lines_sz - led.wh;
     if (off > 0) buf->cur.off = off;
     else buf->cur.off = 0;
 }
