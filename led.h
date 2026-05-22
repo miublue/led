@@ -3,7 +3,7 @@
 
 #include <stdlib.h>
 
-#define VERSION "1.62"
+#define VERSION "1.68"
 #define LENGTH(x) (sizeof(x)/sizeof((x)[0]))
 #define CTRL(c) ((c) & 0x1f)
 #define ALLOC_SIZE 512
@@ -36,6 +36,8 @@ struct buffer {
     struct action *actions;
 };
 
+void init_curses(void);
+void quit_curses(void);
 struct buffer *create_buffer(char *name);
 void close_buffer(struct buffer *buf);
 void switch_buffer(struct buffer *new);

@@ -160,7 +160,7 @@ static void _keepup_cursor(struct buffer *buf) {
         buf->search_range = (struct line) { .start = 0, .end = buf->text_sz };
 }
 
-static void _init_curses(void) {
+void init_curses(void) {
     initscr();
     raw();
     noecho();
@@ -187,7 +187,7 @@ static void _init_curses(void) {
 #endif
 }
 
-static void _quit_curses(void) {
+void quit_curses(void) {
     endwin();
     curs_set(1);
 }
@@ -217,7 +217,7 @@ void close_buffer(struct buffer *buf) {
 
 void exit_program(void) {
     for (led.cur_buffer = led.buffers; led.num_buffers != 0;) close_buffer(led.cur_buffer);
-    _quit_curses();
+    quit_curses();
     exit(0);
 }
 
@@ -941,10 +941,10 @@ int main(int argc, char **argv) {
         led.mode = MODE_PICKER;
         picker_scan(&led.picker, led.cwd);
     }
-    _init_curses();
+    init_curses();
     getmaxyx(stdscr, led.wh, led.ww);
     if (led.ww < MIN_TERM_WIDTH || led.wh < MIN_TERM_HEIGHT) {
-        _quit_curses();
+        quit_curses();
         fprintf(stderr, "error: %s requires minimum terminal size of %dx%d\n",
             argv[0], MIN_TERM_WIDTH, MIN_TERM_HEIGHT);
         return 1;

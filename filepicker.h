@@ -98,7 +98,9 @@ static void _picker_exec(struct filepicker *fp) {
     char cmd[4096], cur[PATH_MAX];
     strcpy(cur, fp->files[fp->cur].name);
     snprintf(cmd, sizeof(cmd), "cd %s && %s", fp->path, fp->input.text);
+    quit_curses();
     system(cmd);
+    init_curses();
     picker_scan(fp, NULL);
     _picker_find_next(fp, cur);
 }
