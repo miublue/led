@@ -415,7 +415,7 @@ void unindent_line(struct buffer *buf) {
     buf->cur.cur = buf->lines[buf->cur.line].start;
     if (buf->text[buf->cur.cur] == '\t') remove_char(buf, FALSE);
     else for (rem = 0; rem < opts.tab_width && buf->text[buf->cur.cur] == ' '; ++rem) remove_char(buf, FALSE);
-    buf->cur.cur = cur - rem;
+    buf->cur.cur = MAX(cur - rem, buf->lines[buf->cur.line].start);
     if (buf->cur.cur > buf->lines[buf->cur.line].end) buf->cur.cur = buf->lines[buf->cur.line].end;
     if (buf->cur.cur < buf->lines[buf->cur.line].start) buf->cur.cur = buf->lines[buf->cur.line].start;
 }
@@ -524,6 +524,7 @@ static inline void _operate_on_lines(struct buffer *buf, void (*fn)(struct buffe
         fn(buf);
         const int diff = (line->end - line->start) - prev;
         buf->cur.sel += diff, buf->search_range.end += diff;
+        if (buf->cur.sel <= line->start) buf->cur.sel = line->start;
         if (buf->cur.sel >= line->start && buf->cur.sel <= line->end)
             break;
     }
