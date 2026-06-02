@@ -1,7 +1,7 @@
 CC = tcc
 LIBS = -lncurses
 PREFIX = /usr/local
-CFLAGS = -Wall -Werror -Wextra -std=c99
+CFLAGS = -Wall -Werror -Wextra -std=c99 -D_GNU_SOURCE
 USEMTM = 1
 USEXSEL = 1
 
