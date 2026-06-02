@@ -212,7 +212,8 @@ void close_buffer(struct buffer *buf) {
     if (--led.num_buffers == 0) exit_program();
     led.mode = MODE_NONE;
     for (struct buffer *b = buf; b != &led.buffers[led.num_buffers]; ++b) *b = *(b+1);
-    if (led.cur_buffer == &led.buffers[led.num_buffers]) switch_buffer(led.cur_buffer-1);
+    if (led.cur_buffer == &led.buffers[led.num_buffers]) led.cur_buffer -= 1;
+    switch_buffer(led.cur_buffer);
 }
 
 void exit_program(void) {
