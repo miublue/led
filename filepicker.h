@@ -1,7 +1,7 @@
-#ifndef __FILEPICKER_H
-#define __FILEPICKER_H
-
 #include <dirent.h>
+#include <stdlib.h>
+#include "led.h"
+#include "config.h"
 
 #ifndef FILEPICKER_PATH_MAX
 #define FILEPICKER_PATH_MAX 1024
@@ -20,23 +20,21 @@ struct filepicker {
     struct inputbox input;
 };
 
-int picker_scan(struct filepicker *fp, char *path);
-void picker_update(struct filepicker *fp, int ch);
-void picker_render(struct filepicker *fp);
-void picker_reset(struct filepicker *fp);
-
-#ifdef FILEPICKER_IMPL
-
-#include <stdlib.h>
-#include "led.h"
-#include "config.h"
-
 static inline int _picker_filter_dirs(const struct dirent *ent) {
     return ent->d_type == DT_DIR;
 }
 
 static inline int _picker_filter_files(const struct dirent *ent) {
     return ent->d_type == DT_REG;
+}
+
+void picker_reset(struct filepicker *fp) {
+    if (fp->num_files) {
+        for (int i = 0; i < fp->num_files; ++i)
+            free(fp->files[i].name);
+    }
+    fp->cur = fp->off = fp->num_files = fp->mode = 0;
+    input_reset(&fp->input);
 }
 
 int picker_scan(struct filepicker *fp, char *path) {
@@ -171,15 +169,3 @@ void picker_render(struct filepicker *fp) {
     }
 }
 
-void picker_reset(struct filepicker *fp) {
-    if (fp->num_files) {
-        for (int i = 0; i < fp->num_files; ++i)
-            free(fp->files[i].name);
-    }
-    fp->cur = fp->off = fp->num_files = fp->mode = 0;
-    input_reset(&fp->input);
-}
-
-#endif
-
-#endif

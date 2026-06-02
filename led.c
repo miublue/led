@@ -1,4 +1,3 @@
-#define _GNU_SOURCE
 #include <sys/stat.h>
 #include <unistd.h>
 #include <stdio.h>
@@ -10,7 +9,6 @@
 #include "config.h"
 #define INPUTBOX_IMPL
 #include "inputbox.h"
-#define FILEPICKER_IMPL
 #include "filepicker.h"
 
 static struct {
