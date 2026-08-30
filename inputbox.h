@@ -2,7 +2,7 @@
 #define __INPUTBOX_H
 
 #ifndef INPUTBOX_TEXT_SIZE
-#define INPUTBOX_TEXT_SIZE 1024
+#define INPUTBOX_TEXT_SIZE 256
 #endif
 
 struct inputbox {
@@ -105,7 +105,7 @@ void input_update(struct inputbox *ib, int key) {
 }
 
 void input_render(struct inputbox *ib, int x, int y, int w, int attr) {
-    char text[w];
+    char text[INPUTBOX_TEXT_SIZE] = {0};
     const int cap = (ib->text_sz < w)? ib->text_sz : w;
     const int off = (ib->pos >= w-1)? ib->pos-w+1 : 0;
     memset(text, ' ', sizeof(text));
