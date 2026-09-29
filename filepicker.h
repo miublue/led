@@ -11,7 +11,7 @@
 #define FILEPICKER_FILES_MAX 1024
 #endif
 
-enum { PICKER_NONE, PICKER_FIND, PICKER_EXEC };
+enum { PICKER_NONE = 0, PICKER_FIND, PICKER_MOVE, PICKER_COPY, PICKER_DELETE };
 struct filepicker_entry { char is_dir, *name; };
 struct filepicker {
     char path[FILEPICKER_PATH_MAX];
@@ -41,9 +41,8 @@ int picker_scan(struct filepicker *fp, char *path) {
     picker_reset(fp);
     if (path) strcpy(fp->path, path);
     struct dirent **dirs, **files;
-    int num_dirs, num_files;
-    num_dirs = scandir(fp->path, &dirs, _picker_filter_dirs, alphasort);
-    num_files = scandir(fp->path, &files, _picker_filter_files, alphasort);
+    int num_dirs = scandir(fp->path, &dirs, _picker_filter_dirs, alphasort),
+        num_files = scandir(fp->path, &files, _picker_filter_files, alphasort);
     for (int i = 0; i < num_dirs; ++i) {
         if (strcmp(dirs[i]->d_name, ".") == 0) goto f;
         if (fp->num_files < FILEPICKER_FILES_MAX) {
@@ -69,88 +68,72 @@ f:      free(dirs[i]);
 }
 
 static void _picker_move(struct filepicker *fp, int dir) {
-    fp->cur += dir;
-    if (fp->cur < 0) fp->cur = 0;
-    if (fp->cur >= fp->num_files) fp->cur = fp->num_files-1;
-    if (fp->cur < fp->off) --fp->off;
-    if (fp->wh != 0 && fp->cur-fp->off >= fp->wh-1) ++fp->off;
+    int c = fp->cur + dir, h = fp->wh-2;
+    fp->cur = c<0? 0 : c>=fp->num_files? fp->num_files-1 : c;
+    c=fp->cur, fp->off = c<fp->off? c : c-fp->off>=h? c-h : fp->off;
 }
 
 static void _picker_find_next(struct filepicker *fp, char *name) {
     int cur = fp->cur, off = fp->off, pos;
     for (pos = cur+1; pos < fp->num_files; ++pos)
-        if (strcasestr(fp->files[pos].name, name)) goto jmp;
+        if (strcasestr(fp->files[pos].name, name)) goto j;
     for (pos = 0; pos < cur; ++pos)
-        if (strcasestr(fp->files[pos].name, name)) goto jmp;
+        if (strcasestr(fp->files[pos].name, name)) goto j;
     fp->cur = cur, fp->off = off;
     return;
-jmp:
-    for (fp->cur = fp->off = 0; fp->cur < pos; _picker_move(fp, 1)){}
-}
-
-static void _picker_find(struct filepicker *fp) {
-    _picker_find_next(fp, fp->input.text);
+j:  fp->cur = fp->off = 0;
+    _picker_move(fp, pos);
 }
 
 static void _picker_exec(struct filepicker *fp) {
-    char cmd[4096], cur[PATH_MAX];
-    strcpy(cur, fp->files[fp->cur].name);
-    snprintf(cmd, sizeof(cmd), "cd %s && %s", fp->path, fp->input.text);
-    quit_curses();
-    system(cmd);
-    init_curses();
-    picker_scan(fp, NULL);
-    _picker_find_next(fp, cur);
-}
-
-static void _picker_update_mode(struct filepicker *fp, int ch, void (*fn)(struct filepicker*)) {
-    if (ch == CTRL('q') || ch == CTRL('c')) {
-        fp->mode = PICKER_NONE;
+    if (fp->mode == PICKER_FIND) {
+        _picker_find_next(fp, fp->input.text);
         return;
     }
-    if (ch == '\n' && fp->input.text_sz) {
-        fn(fp);
-        fp->mode = PICKER_NONE;
-    } else input_update(&fp->input, ch);
+    char cmd[4096] = {0}, new[INPUTBOX_TEXT_SIZE] = {0};
+    int cur = fp->cur;
+    strcpy(new, fp->input.text);
+    if (fp->mode != PICKER_DELETE) {
+        snprintf(cmd, sizeof(cmd), "%s \"%s/%s\" \"%s/%s\"",
+            fp->mode == PICKER_MOVE? "mv" : "cp", fp->path,
+            fp->files[fp->cur].name, fp->path, new);
+    } else snprintf(cmd, sizeof(cmd), "rm -rf \"%s/%s\"", fp->path, new);
+    system(cmd);
+    picker_scan(fp, NULL);
+    if (fp->mode == PICKER_DELETE) _picker_move(fp, cur);
+    else _picker_find_next(fp, new);
+}
+
+static void _picker_mode(struct filepicker *fp, int mode) {
+    input_reset(&fp->input);
+    if ((fp->mode = mode) > PICKER_FIND) {
+        strcpy(fp->input.text, fp->files[fp->cur].name);
+        fp->input.pos = fp->input.text_sz = strlen(fp->files[fp->cur].name);
+    }
 }
 
 void picker_update(struct filepicker *fp, int ch) {
-    switch (fp->mode) {
-    case PICKER_FIND: _picker_update_mode(fp, ch, &_picker_find); return;
-    case PICKER_EXEC: _picker_update_mode(fp, ch, &_picker_exec); return;
-    default: break;
+    if (fp->mode) {
+        switch (ch) {
+        case '\n': if (!fp->input.text_sz) break; _picker_exec(fp); /* FALLTHROUGH */
+        case CTRL('q'): case CTRL('c'): fp->mode = PICKER_NONE; break;
+        default: input_update(&fp->input, ch); break;
+        }
+        return;
     }
     switch (ch) {
-    case KEY_UP:
-        _picker_move(fp, -1);
-        break;
-    case KEY_DOWN:
-        _picker_move(fp, 1);
-        break;
-    case KEY_PPAGE:
-        for (int i = 0; i < fp->wh-1; ++i) _picker_move(fp, -1);
-        break;
-    case KEY_NPAGE:
-        for (int i = 0; i < fp->wh-1; ++i) _picker_move(fp, 1);
-        break;
-    case KEY_HOME:
-        fp->cur = fp->off = 0;
-        break;
-    case KEY_END:
-        for (fp->cur = fp->off = 0; fp->cur+1 < fp->num_files; ) _picker_move(fp, 1);
-        break;
-    case CTRL('f'):
-        input_reset(&fp->input);
-        fp->mode = PICKER_FIND;
-        break;
-    case CTRL('e'): /* idk if strcmp is the best idea but it works for now so whatevs */
-        if (strcmp(fp->path, "*BUFFERS*") != 0) {
-            input_reset(&fp->input);
-            fp->mode = PICKER_EXEC;
-        }
-        break;
+    case KEY_UP:    _picker_move(fp, -1); break;
+    case KEY_DOWN:  _picker_move(fp, +1); break;
+    case KEY_PPAGE: _picker_move(fp, -(fp->wh-2)); break;
+    case KEY_NPAGE: _picker_move(fp, +(fp->wh-2)); break;
+    case KEY_END:   _picker_move(fp, +fp->num_files); break;
+    case KEY_HOME:  _picker_move(fp, -fp->num_files); break;
+    case 'm': _picker_mode(fp, PICKER_MOVE); break;
+    case 'c': _picker_mode(fp, PICKER_COPY); break;
+    case 'd': _picker_mode(fp, PICKER_DELETE); break;
+    case CTRL('f'): case 'f': case '/': _picker_mode(fp, PICKER_FIND); break;
     case CTRL('n'): case 'n':
-        if (fp->input.text_sz) _picker_find(fp);
+        if (fp->input.text_sz) _picker_find_next(fp, fp->input.text);
         break;
     }
 }
@@ -168,4 +151,3 @@ void picker_render(struct filepicker *fp) {
         attroff(attr);
     }
 }
-
