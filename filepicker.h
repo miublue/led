@@ -16,7 +16,7 @@ struct filepicker_entry { char is_dir, *name; };
 struct filepicker {
     char path[FILEPICKER_PATH_MAX];
     struct filepicker_entry files[FILEPICKER_FILES_MAX];
-    int num_files, cur, off, ww, wh, mode;
+    int num_files, can_exec, cur, off, ww, wh, mode;
     struct inputbox input;
 };
 
@@ -33,7 +33,7 @@ void picker_reset(struct filepicker *fp) {
         for (int i = 0; i < fp->num_files; ++i)
             free(fp->files[i].name);
     }
-    fp->cur = fp->off = fp->num_files = fp->mode = 0;
+    fp->cur = fp->off = fp->num_files = fp->mode = 0, fp->can_exec = 1;
     input_reset(&fp->input);
 }
 
@@ -105,6 +105,7 @@ static void _picker_exec(struct filepicker *fp) {
 }
 
 static void _picker_mode(struct filepicker *fp, int mode) {
+    if (mode > PICKER_FIND && !fp->can_exec) return;
     input_reset(&fp->input);
     if ((fp->mode = mode) > PICKER_FIND) {
         strcpy(fp->input.text, fp->files[fp->cur].name);

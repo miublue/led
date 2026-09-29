@@ -683,6 +683,7 @@ void next_buffer(void) {
 
 static void _list_buffers(void) {
     picker_reset(&led.picker);
+    led.picker.can_exec = 0;
     strcpy(led.picker.path, "*BUFFERS*");
     for (int i = 0; i < led.num_buffers; ++i) {
         led.picker.files[led.picker.num_files++] = (struct filepicker_entry) {
