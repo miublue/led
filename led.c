@@ -627,7 +627,9 @@ char *get_filename(const char *name, int fmt_type) {
 static void _render_status(void) {
     static const char *_picker_mode_str[] = {
         [PICKER_FIND] = "Find: ",
-        [PICKER_EXEC] = "Exec: ",
+        [PICKER_MOVE] = "Move: ",
+        [PICKER_COPY] = "Copy: ",
+        [PICKER_DELETE] = "Delete: ",
     };
     char status[ALLOC_SIZE] = {0}, *name;
     struct buffer *buf = led.cur_buffer;
@@ -943,6 +945,7 @@ int main(int argc, char **argv) {
     }
     init_curses();
     getmaxyx(stdscr, led.wh, led.ww);
+    led.picker.wh = led.wh, led.picker.ww = led.ww;
     if (led.ww < MIN_TERM_WIDTH || led.wh < MIN_TERM_HEIGHT) {
         quit_curses();
         fprintf(stderr, "error: %s requires minimum terminal size of %dx%d\n",
