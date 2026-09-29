@@ -624,13 +624,8 @@ char *get_filename(const char *name, int fmt_type) {
     return path;
 }
 
+static const char *_picker_mode_str[] = { "Find: ", "Move: ", "Copy: ", "Delete: ", };
 static void _render_status(void) {
-    static const char *_picker_mode_str[] = {
-        [PICKER_FIND] = "Find: ",
-        [PICKER_MOVE] = "Move: ",
-        [PICKER_COPY] = "Copy: ",
-        [PICKER_DELETE] = "Delete: ",
-    };
     char status[ALLOC_SIZE] = {0}, *name;
     struct buffer *buf = led.cur_buffer;
     int attr = CFG_ATTRSTATUS;
@@ -654,7 +649,7 @@ static void _render_status(void) {
     mvprintw(led.wh-1, led.ww-strlen(status), "%s", status);
     if (led.mode != MODE_NONE) {
         struct inputbox *inp = led.mode >= MODE_PICKER? &led.picker.input : &led.input;
-        const char *astr = led.mode >= MODE_PICKER? _picker_mode_str[led.picker.mode] : _mode_to_cstr();
+        const char *astr = led.mode >= MODE_PICKER? _picker_mode_str[led.picker.mode-1] : _mode_to_cstr();
         if (led.mode >= MODE_PICKER && !led.picker.mode) goto end;
         mvprintw(led.wh-1, 0, "%s", astr);
         const int s = strlen(astr), cap = s+strlen(status), w = cap+5 > led.ww? led.ww-s : led.ww-cap;
