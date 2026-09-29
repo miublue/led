@@ -624,7 +624,7 @@ char *get_filename(const char *name, int fmt_type) {
     return path;
 }
 
-static const char *_picker_mode_str[] = { "Find: ", "Move: ", "Copy: ", "Delete: ", };
+static const char *_picker_mode_str[] = { "Find: ", "Move: ", "Copy: ", "Create: ", "Delete: ", };
 static void _render_status(void) {
     char status[ALLOC_SIZE] = {0}, *name;
     struct buffer *buf = led.cur_buffer;

@@ -11,7 +11,7 @@
 #define FILEPICKER_FILES_MAX 1024
 #endif
 
-enum { PICKER_NONE = 0, PICKER_FIND, PICKER_MOVE, PICKER_COPY, PICKER_DELETE };
+enum { PICKER_NONE = 0, PICKER_FIND, PICKER_MOVE, PICKER_COPY, PICKER_CREATE, PICKER_DELETE };
 struct filepicker_entry { char is_dir, *name; };
 struct filepicker {
     char path[FILEPICKER_PATH_MAX];
@@ -86,28 +86,35 @@ j:  fp->cur = fp->off = 0;
 }
 
 static void _picker_exec(struct filepicker *fp) {
-    if (fp->mode == PICKER_FIND) {
+    char cmd[4096] = {0}, new[INPUTBOX_TEXT_SIZE] = {0};
+    strcpy(new, fp->input.text);
+    const int cur = fp->cur, is_dir = new[fp->input.text_sz-1]=='/';
+    switch (fp->mode) {
+    case PICKER_FIND:
         _picker_find_next(fp, fp->input.text);
         return;
-    }
-    char cmd[4096] = {0}, new[INPUTBOX_TEXT_SIZE] = {0};
-    int cur = fp->cur;
-    strcpy(new, fp->input.text);
-    if (fp->mode != PICKER_DELETE) {
+    case PICKER_COPY: case PICKER_MOVE:
         snprintf(cmd, sizeof(cmd), "%s \"%s/%s\" \"%s/%s\"",
             fp->mode == PICKER_MOVE? "mv" : "cp", fp->path,
             fp->files[fp->cur].name, fp->path, new);
-    } else snprintf(cmd, sizeof(cmd), "rm -rf \"%s/%s\"", fp->path, new);
+        break;
+    case PICKER_CREATE: case PICKER_DELETE:
+        snprintf(cmd, sizeof(cmd), "%s \"%s/%s\"",
+            fp->mode == PICKER_DELETE? "rm -rf" : is_dir? "mkdir" : "touch",
+            fp->path, new);
+        if (fp->mode == PICKER_CREATE && is_dir) new[fp->input.text_sz-1] = 0;
+        break;
+    }
     system(cmd);
     picker_scan(fp, NULL);
-    if (fp->mode == PICKER_DELETE) _picker_move(fp, cur);
+    if (fp->mode == PICKER_DELETE) _picker_move(fp, MIN(cur, fp->num_files));
     else _picker_find_next(fp, new);
 }
 
 static void _picker_mode(struct filepicker *fp, int mode) {
     if (mode > PICKER_FIND && !fp->can_exec) return;
     input_reset(&fp->input);
-    if ((fp->mode = mode) > PICKER_FIND) {
+    if ((fp->mode = mode) != PICKER_FIND && mode != PICKER_CREATE) {
         strcpy(fp->input.text, fp->files[fp->cur].name);
         fp->input.pos = fp->input.text_sz = strlen(fp->files[fp->cur].name);
     }
@@ -131,9 +138,10 @@ void picker_update(struct filepicker *fp, int ch) {
     case KEY_HOME:  _picker_move(fp, -fp->num_files); break;
     case 'm': _picker_mode(fp, PICKER_MOVE); break;
     case 'c': _picker_mode(fp, PICKER_COPY); break;
+    case 'n': _picker_mode(fp, PICKER_CREATE); break;
     case 'd': _picker_mode(fp, PICKER_DELETE); break;
-    case CTRL('f'): case 'f': case '/': _picker_mode(fp, PICKER_FIND); break;
-    case CTRL('n'): case 'n':
+    case CTRL('f'): case '/': _picker_mode(fp, PICKER_FIND); break;
+    case CTRL('n'):
         if (fp->input.text_sz) _picker_find_next(fp, fp->input.text);
         break;
     }
