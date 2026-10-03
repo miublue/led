@@ -183,6 +183,14 @@ void init_curses(void) {
     sprintf(key, "%c%c", 200, 185); define_key(key, 569); /* kRIT5 */
     sprintf(key, "%c%c", 200, 186); define_key(key, 570); /* kRIT6 */
 #endif
+#if _USE_COLOR
+    use_default_colors();
+    start_color();
+    init_pair(PAIR_NORMAL, -1, -1);
+    init_pair(PAIR_STATUS,   CFG_COLORSTATUSFG,   CFG_COLORSTATUSBG);
+    init_pair(PAIR_SELECT,   CFG_COLORSELECTFG,   CFG_COLORSELECTBG);
+    init_pair(PAIR_UNSELECT, CFG_COLORUNSELECTFG, CFG_COLORUNSELECTBG);
+#endif
 }
 
 void quit_curses(void) {
@@ -551,8 +559,9 @@ static void _render_line(struct buffer *buf, int l, int off) {
     int sz = off, attr;
     for (int i = line.start; i <= line.end; ++i) {
         if (buf->cur.cur == i) buf->cur_x = sz, buf->cur_y = l-buf->cur.off;
-        attr = (_is_selected(buf, i))? CFG_ATTRSELECT : A_NORMAL;
-        if (i < buf->search_range.start || i > buf->search_range.end) attr |= CFG_ATTRUNSELECT;
+        attr = (_is_selected(buf, i))? (CFG_ATTRSELECT | (_USE_COLOR?COLOR_PAIR(PAIR_SELECT):0)) : A_NORMAL;
+        if (i < buf->search_range.start || i > buf->search_range.end)
+            attr |= CFG_ATTRUNSELECT | (_USE_COLOR?COLOR_PAIR(PAIR_UNSELECT):0);
         attron(attr);
         mvprintw(l-buf->cur.off, sz, "%c", isspace(buf->text[i])? ' ' : buf->text[i]);
         if (buf->text[i] == '\t') {
@@ -628,7 +637,7 @@ static const char *_picker_mode_str[] = { "Find: ", "Move: ", "Copy: ", "Create:
 static void _render_status(void) {
     char status[ALLOC_SIZE] = {0}, *name;
     struct buffer *buf = led.cur_buffer;
-    int attr = CFG_ATTRSTATUS;
+    int attr = CFG_ATTRSTATUS | (_USE_COLOR? COLOR_PAIR(PAIR_STATUS) : 0);
     attron(attr);
     memset(status, ' ', led.ww);
     mvprintw(led.wh-1, 0, "%s", status);

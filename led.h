@@ -3,7 +3,11 @@
 
 #include <stdlib.h>
 
-#define VERSION "1.6.13"
+#ifndef _USE_COLOR
+#define _USE_COLOR 0
+#endif
+
+#define VERSION "1.6.14"
 #define LENGTH(x) (sizeof(x)/sizeof((x)[0]))
 #define CTRL(c) ((c) & 0x1f)
 #define ALLOC_SIZE 512
@@ -19,6 +23,7 @@
 struct line { int start, end; };
 struct cursor { int cur, off, line, sel; };
 
+enum { PAIR_NORMAL, PAIR_STATUS, PAIR_SELECT, PAIR_UNSELECT, };
 enum { MODE_NONE, MODE_EXIT, MODE_FIND, MODE_REPLACE, MODE_GOTO, MODE_PICKER, MODE_BUFFERS };
 enum { ACTION_INSERT, ACTION_DELETE, ACTION_BACKSPACE };
 struct action {

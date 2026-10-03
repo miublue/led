@@ -4,6 +4,7 @@ PREFIX = /usr/local
 CFLAGS = -Wall -Werror -Wextra
 USEMTM = 1
 USEXSEL = 1
+USECOLOR = 1
 
 ifdef USEMTM
 	CFLAGS += -D_USE_MTM
@@ -11,6 +12,10 @@ endif
 
 ifdef USEXSEL
 	CFLAGS += -D_USE_XSEL
+endif
+
+ifdef USECOLOR
+	CFLAGS += -D_USE_COLOR
 endif
 
 all:
