@@ -188,6 +188,8 @@ void init_curses(void) {
     start_color();
     init_pair(PAIR_NORMAL, -1, -1);
     init_pair(PAIR_STATUS,   CFG_COLORSTATUSFG,   CFG_COLORSTATUSBG);
+    init_pair(PAIR_CURLINE,  CFG_COLORCURLINEFG,  CFG_COLORCURLINEBG);
+    init_pair(PAIR_LINENUM,  CFG_COLORLINENUMFG,  CFG_COLORLINENUMBG);
     init_pair(PAIR_SELECT,   CFG_COLORSELECTFG,   CFG_COLORSELECTBG);
     init_pair(PAIR_UNSELECT, CFG_COLORUNSELECTFG, CFG_COLORUNSELECTBG);
 #endif
@@ -574,7 +576,8 @@ static void _render_line(struct buffer *buf, int l, int off) {
         attroff(attr);
     }
     if (opts.show_numbers) {
-        attr = (l == buf->cur.line)? CFG_ATTRCURLINE : CFG_ATTRLINENO;
+        attr = (l == buf->cur.line)? CFG_ATTRCURLINE|COLOR_PAIR(PAIR_CURLINE)
+                                   : CFG_ATTRLINENUM|COLOR_PAIR(PAIR_LINENUM);
         attron(attr);
         mvprintw(l-buf->cur.off, 0, " %*d ", led.rulersz, l+1);
         attroff(attr);
