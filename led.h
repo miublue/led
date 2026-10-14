@@ -7,7 +7,7 @@
 #define _USE_COLOR 0
 #endif
 
-#define VERSION "1.6.15"
+#define VERSION "1.6.16"
 #define LENGTH(x) (sizeof(x)/sizeof((x)[0]))
 #define CTRL(c) ((c) & 0x1f)
 #define ALLOC_SIZE 512

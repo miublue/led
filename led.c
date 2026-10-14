@@ -576,8 +576,8 @@ static void _render_line(struct buffer *buf, int l, int off) {
         attroff(attr);
     }
     if (opts.show_numbers) {
-        attr = (l == buf->cur.line)? CFG_ATTRCURLINE|COLOR_PAIR(PAIR_CURLINE)
-                                   : CFG_ATTRLINENUM|COLOR_PAIR(PAIR_LINENUM);
+        attr = (l == buf->cur.line)? CFG_ATTRCURLINE|(_USE_COLOR?COLOR_PAIR(PAIR_CURLINE):0)
+                                   : CFG_ATTRLINENUM|(_USE_COLOR?COLOR_PAIR(PAIR_LINENUM):0);
         attron(attr);
         mvprintw(l-buf->cur.off, 0, " %*d ", led.rulersz, l+1);
         attroff(attr);
